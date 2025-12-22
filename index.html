@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice MCSC-11</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .invoice-container {
+            max-width: 850px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px 50px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .invoice-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #5B9BD5;
+        }
+
+        .invoice-title {
+            font-size: 22px;
+            font-weight: 600;
+            letter-spacing: 4px;
+            color: #5B9BD5;
+            margin: 0;
+        }
+
+        .invoice-subtitle {
+            font-size: 10px;
+            color: #999;
+            letter-spacing: 0.5px;
+            margin: 0;
+        }
+
+        .company-section {
+            margin-bottom: 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .company-info {
+            flex: 1;
+        }
+
+        .company-name {
+            font-size: 22px;
+            font-weight: 700;
+            color: #2C3E50;
+            margin: 0 0 8px 0;
+        }
+
+        .company-address {
+            font-size: 14px;
+            line-height: 1.6;
+            color: #555;
+            margin: 0 0 2px 0;
+        }
+
+        .company-email {
+            font-size: 14px;
+            color: #5B9BD5;
+            margin: 4px 0 0 0;
+        }
+
+        .company-logo-section {
+            margin-left: 30px;
+            margin-right: 50px;
+        }
+
+        .mcsc-logo-img {
+            height: 110px;
+            width: auto;
+            object-fit: contain;
+            border: 1px solid #E0E0E0;
+            padding: 8px;
+            border-radius: 100px;
+        }
+
+        .invoice-meta {
+            display: flex;
+            gap: 60px;
+            margin-bottom: 25px;
+            padding: 15px;
+            background-color: #fff;
+            border-radius: 5px;
+        }
+
+        .meta-item {
+            flex: 0 0 auto;
+        }
+
+        .meta-label {
+            font-size: 13px;
+            color: #000;
+            margin: 0 0 4px 0;
+            font-weight: 500;
+        }
+
+        .meta-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #2C3E50;
+            margin: 0;
+        }
+
+        .customer-section {
+            margin-bottom: 20px;
+            padding: 12px 15px;
+            background-color: #fff;
+
+            border-radius: 3px;
+        }
+
+        .customer-title {
+            font-size: 11px;
+            font-weight: 500;
+            color: #888;
+            margin: 0 0 6px 0;
+        }
+
+        .customer-name {
+            font-size: 15px;
+            font-weight: 700;
+            margin: 0 0 3px 0;
+            color: #2C3E50;
+        }
+
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 25px 0 20px 0;
+        }
+
+        .items-table thead {
+            background-color: transparent;
+            border-top: 2px solid #5B9BD5;
+            border-bottom: 2px solid #5B9BD5;
+        }
+
+        .items-table th {
+            background-color: transparent;
+            color: #2C3E50;
+            padding: 8px 10px;
+            text-align: left;
+            font-size: 15px;
+            font-weight: 600;
+            border-bottom: 2px solid #5B9BD5;
+        }
+
+        .items-table th:last-child {
+            text-align: right;
+        }
+
+        .items-table tbody tr {
+            background-color: #FAFAFA;
+        }
+
+        .items-table tbody tr:hover {
+            background-color: #F5F5F5;
+        }
+
+        .items-table td {
+            padding: 12px 14px;
+            border-bottom: 1px solid #E5E8EB;
+            font-size: 13px;
+            vertical-align: top;
+        }
+
+        .items-table .item-number {
+            width: 40px;
+            color: #888;
+            font-weight: 500;
+        }
+
+        .items-table .item-name {
+            width: auto;
+        }
+
+        .items-table .item-name strong {
+            font-size: 17px;
+            font-weight: 600;
+            color: #2C3E50;
+        }
+
+        .items-table .item-rate {
+            width: 140px;
+            text-align: right;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .items-table .item-qty {
+            width: 100px;
+            text-align: center;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .items-table .item-amount {
+            width: 140px;
+            text-align: right;
+            font-weight: 700;
+            color: #2C3E50;
+            font-size: 14px;
+        }
+
+        .booking-details {
+            font-size: 13px;
+            color: #000;
+            line-height: 1.6;
+            margin-top: 6px;
+        }
+
+        .totals-section {
+            margin-top: 25px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            padding: 20px;
+            background-color: #F5F5F5;
+            border-radius: 5px;
+        }
+
+        .total-items-row {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .total-words {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 15px;
+            text-align: right;
+        }
+
+        .total-amount-row {
+            display: flex;
+            gap: 100px;
+            font-size: 16px;
+            font-weight: 600;
+            color: #2C3E50;
+            padding-top: 12px;
+            border-top: 2px solid #5B9BD5;
+            margin-bottom: 10px;
+        }
+
+        .amount-payable {
+            display: flex;
+            gap: 100px;
+            font-size: 18px;
+            font-weight: 700;
+            color: #2C3E50;
+            background-color: transparent;
+            padding: 12px 20px;
+            border-radius: 5px;
+            margin-top: 5px;
+        }
+
+        .bank-signature-container {
+            display: flex;
+            gap: 40px;
+            margin: 30px 0;
+            align-items: flex-start;
+        }
+
+        .bank-details {
+            margin: 0;
+            padding: 20px;
+            background-color: #F5F5F5;
+            border-radius: 5px;
+            flex: 1;
+        }
+
+        .bank-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #2C3E50;
+            margin: 0 0 12px 0;
+        }
+
+        .bank-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px 30px;
+            font-size: 12px;
+        }
+
+        .bank-item {
+            display: flex;
+            gap: 10px;
+        }
+
+        .bank-label {
+            font-weight: 600;
+            color: #666;
+            min-width: 110px;
+        }
+
+        .bank-value {
+            color: #2C3E50;
+            font-weight: 500;
+        }
+
+        .signature-section {
+            flex: 0 0 auto;
+            margin-right: 40px;
+        }
+
+        .signature-content {
+            text-align: center;
+        }
+
+        .signature-line {
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 10px;
+            font-weight: 500;
+        }
+
+        .rahul-signature {
+            margin: 15px 0;
+        }
+
+        .rahul-signature-img {
+            height: 90px;
+            width: auto;
+            object-fit: contain;
+        }
+
+        .signature-name {
+            font-size: 12px;
+            font-weight: 600;
+            color: #2C3E50;
+        }
+
+        .notes-section {
+            margin: 25px 0;
+            padding: 15px;
+            background-color: #F0F8F4;
+            border-radius: 5px;
+            border-left: 4px solid #4CAF50;
+        }
+
+        .notes-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #2C3E50;
+            margin: 0 0 8px 0;
+        }
+
+        .notes-content {
+            font-size: 13px;
+            line-height: 1.7;
+            color: #000;
+        }
+
+        .terms-section {
+            margin: 25px 0;
+        }
+
+        .terms-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #2C3E50;
+            margin: 0 0 10px 0;
+        }
+
+        .terms-list {
+            font-size: 13px;
+            line-height: 1.7;
+            color: #000;
+        }
+
+        .terms-list ol {
+            padding-left: 18px;
+            margin: 0;
+        }
+
+        .terms-list li {
+            margin-bottom: 8px;
+            padding-left: 4px;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 35px;
+            padding-top: 20px;
+            border-top: 2px solid #E5E5E5;
+            font-size: 10px;
+            color: #AAA;
+        }
+
+        .footer-content {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        /* Simple form panel (does not affect invoice styling) */
+        .form-panel {
+            max-width: 850px;
+            margin: 0 auto 16px auto;
+            background: #fff;
+            padding: 16px 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.08);
+            border-left: 4px solid #5B9BD5;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px 16px;
+        }
+
+        .form-grid .full {
+            grid-column: 1 / -1;
+        }
+
+        .form-panel label {
+            font-size: 12px;
+            color: #333;
+            font-weight: 600;
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        .form-panel input {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #E0E0E0;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .form-actions {
+            margin-top: 12px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            background: #5B9BD5;
+            color: #fff;
+            border: none;
+            padding: 10px 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .btn.secondary {
+            background: #8795a1;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Data Entry Form (separate, does not change invoice visual design) -->
+    <div class="form-panel">
+        <form id="invoice-form">
+            <div class="form-grid">
+                <div>
+                    <label>Invoice #</label>
+                    <input id="f-invoiceNo" type="text" value="MCSC-11">
+                </div>
+                <div>
+                    <label>Invoice Date</label>
+                    <input id="f-invoiceDate" type="date">
+                </div>
+                <div>
+                    <label>Due Date</label>
+                    <input id="f-dueDate" type="date">
+                </div>
+                <div class="full">
+                    <label>Customer Name</label>
+                    <input id="f-customerName" type="text" value="Anuj">
+                </div>
+                <div>
+                    <label>Customer Email</label>
+                    <input id="f-customerEmail" type="email" placeholder="guest@example.com">
+                </div>
+                <div>
+                    <label>Customer Phone</label>
+                    <input id="f-customerPhone" type="tel" placeholder="+91-XXXXXXXXXX">
+                </div>
+                <div class="full">
+                    <label>Property Name</label>
+                    <input id="f-propertyName" type="text" value="Rahul's Paradise">
+                </div>
+                <div>
+                    <label>Check-in</label>
+                    <input id="f-checkin" type="date">
+                </div>
+                <div>
+                    <label>Check-out</label>
+                    <input id="f-checkout" type="date">
+                </div>
+                <div>
+                    <label>Guests</label>
+                    <input id="f-guests" type="number" min="1" value="6">
+                </div>
+                <div>
+                    <label>Rate / Night (INR)</label>
+                    <input id="f-rate" type="number" min="0" step="0.01" value="12000">
+                </div>
+                <div>
+                    <label>Nights</label>
+                    <input id="f-nights" type="number" min="1" value="1">
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn">Apply To Invoice</button>
+                <button type="button" id="btn-print" class="btn secondary">Print</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="invoice-container">
+        <!-- Header -->
+        <div class="invoice-header">
+            <div>
+                <div class="invoice-title">INVOICE</div>
+            </div>
+            <div class="invoice-subtitle">ORIGINAL FOR RECIPIENT</div>
+        </div>
+
+        <!-- Company Information with Logo -->
+        <div class="company-section">
+            <div class="company-info">
+                <div class="company-name">Mi Casa Su Casa</div>
+                <div class="company-address">
+                    Mi Casa Su Casa, Nirmala Apartment, Shop No. 1, J.P Road, Andheri, West, opposite
+                </div>
+                <div class="company-address">
+                    Rajkumar Hotel, Mumbai, Maharashtra 400058
+                </div>
+                <div class="company-address">Mumbai Suburban, MAHARASHTRA, 400053</div>
+                <div class="company-email">Email mcscmicasasucasa@gmail.com</div>
+            </div>
+            <div class="company-logo-section">
+                <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+                    alt="MCSC Logo" class="mcsc-logo-img" id="mcsc-logo">
+            </div>
+        </div>
+
+        <!-- Invoice Meta Information -->
+        <div class="invoice-meta">
+            <div class="meta-item">
+                <div class="meta-label">Invoice #:</div>
+                <div class="meta-value" id="i-invoiceNo">MCSC-11</div>
+            </div>
+            <div class="meta-item">
+                <div class="meta-label">Invoice Date:</div>
+                <div class="meta-value" id="i-invoiceDate">12 Oct 2025</div>
+            </div>
+            <div class="meta-item">
+                <div class="meta-label">Due Date:</div>
+                <div class="meta-value" id="i-dueDate">12 Oct 2025</div>
+            </div>
+        </div>
+
+        <!-- Customer Details -->
+        <div class="customer-section">
+            <div class="customer-title">Customer Details:</div>
+            <div class="customer-name" id="i-customerName">Anuj</div>
+        </div>
+
+        <!-- Items Table -->
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th class="item-number">#</th>
+                    <th class="item-name">Item</th>
+                    <th class="item-rate">Rate / Item</th>
+                    <th class="item-qty">Qty</th>
+                    <th class="item-amount">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="item-number">1</td>
+                    <td class="item-name">
+                        <strong id="i-propertyName">Rahul's Paradise</strong>
+                        <div class="booking-details" id="i-bookingDetails">
+                            Booker: Anuj<br>
+                            Check-in: 30th Oct 2025<br>
+                            Check-out: 31st Oct 2025<br>
+                            Guests: 6 Adults
+                        </div>
+                    </td>
+                    <td class="item-rate" id="i-rate">12,000.00</td>
+                    <td class="item-qty" id="i-qty">1 NIGHT</td>
+                    <td class="item-amount" id="i-amount">12,000.00</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Totals Section -->
+        <div class="totals-section">
+            <div class="total-items-row" id="i-totalItems">Total Items / Qty: 1 / 1</div>
+            <div class="total-words" id="i-amountWords">
+                Total amount (in words): INR Twelve Thousand Rupees Only.
+            </div>
+            <div class="total-amount-row">
+                <span>Total</span>
+                <span id="i-total">₹12,000.00</span>
+            </div>
+            <div class="amount-payable">
+                <span>Amount Payable:</span>
+                <span id="i-payable">₹12,000.00</span>
+            </div>
+        </div>
+
+        <!-- Bank Details and Signature Side by Side -->
+        <div class="bank-signature-container">
+            <div class="bank-details">
+                <div class="bank-title">Bank Details:</div>
+                <div class="bank-info">
+                    <div class="bank-item">
+                        <span class="bank-label">Bank:</span>
+                        <span class="bank-value">HDFC Bank</span>
+                    </div>
+                    <div class="bank-item">
+                        <span class="bank-label">Account Holder:</span>
+                        <span class="bank-value">Rahul Bhagtani</span>
+                    </div>
+                    <div class="bank-item">
+                        <span class="bank-label">Account #:</span>
+                        <span class="bank-value">13571930011724</span>
+                    </div>
+                    <div class="bank-item">
+                        <span class="bank-label">IFSC Code:</span>
+                        <span class="bank-value">HDFC0001357</span>
+                    </div>
+                    <div class="bank-item">
+                        <span class="bank-label">Branch:</span>
+                        <span class="bank-value">INDRALOK-LOKHANDWALA</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Signature Section -->
+            <div class="signature-section">
+                <div class="signature-content">
+                    <div class="signature-line">For Mi Casa Su Casa</div>
+                    <div class="rahul-signature">
+                        <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+                            alt="Signature" class="rahul-signature-img" id="rahul-signature">
+                    </div>
+                    <div class="signature-name">Authorized Signatory</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notes Section -->
+        <div class="notes-section">
+            <div class="notes-title">Notes:</div>
+            <div class="notes-content">
+                Thank you for booking with us!<br>
+                We truly appreciate your trust and look forward to hosting you. Should you need any assistance before or
+                during your stay, feel free to reach out to us anytime.<br><br>
+                Wishing you a pleasant and memorable stay!
+            </div>
+        </div>
+
+        <!-- Terms and Conditions -->
+        <div class="terms-section">
+            <div class="terms-title">Terms and Conditions:</div>
+            <div class="terms-list">
+                <ol>
+                    <li>Bookings are non-refundable and non-cancellable after confirmation; no date changes allowed.
+                    </li>
+                    <li>Check-in time is 2:00 PM, check-out time is 11:00 AM; early check-in or late check-out may incur
+                        extra charges.</li>
+                    <li>Valid government-issued photo ID is required at check-in; copies may be retained for security.
+                    </li>
+                    <li>Guests are responsible for any property damage or loss; associated costs may be deducted from
+                        deposits or charged separately.</li>
+                    <li>Property use is limited to registered guests for residential purposes only; misuse or illegal
+                        activities lead to eviction without refund.</li>
+                    <li>No unregistered visitors allowed without prior approval; extra guest charges may apply.</li>
+                    <li>Management is not liable for loss or damage to personal belongings; guests should safeguard
+                        valuables.</li>
+                    <li>Compliance with house rules and local laws is mandatory; violations may result in eviction
+                        without refund.</li>
+                </ol>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <div class="footer-content">
+                <span>Mi Casa Su Casa</span>
+                <span>This is a computer-generated invoice.</span>
+            </div>
+            <div>
+                Page 1 / 1
+            </div>
+        </div>
+    </div>
+    <script>
+        function formatINR(n) {
+            return Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        function datePretty(iso) {
+            if (!iso) return '';
+            const d = new Date(iso);
+            return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        }
+        function numberToWords(num) {
+            num = Math.floor(Number(num) || 0);
+            if (num === 0) return 'Zero';
+            const belowTwenty = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+            const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+            function toWords(n) {
+                if (n < 20) return belowTwenty[n];
+                if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 ? ' ' + belowTwenty[n % 10] : '');
+                if (n < 1000) return belowTwenty[Math.floor(n / 100)] + ' Hundred' + (n % 100 ? ' ' + toWords(n % 100) : '');
+                if (n < 100000) return toWords(Math.floor(n / 1000)) + ' Thousand' + (n % 1000 ? ' ' + toWords(n % 1000) : '');
+                if (n < 10000000) return toWords(Math.floor(n / 100000)) + ' Lakh' + (n % 100000 ? ' ' + toWords(n % 100000) : '');
+                return toWords(Math.floor(n / 10000000)) + ' Crore' + (n % 10000000 ? ' ' + toWords(n % 10000000) : '');
+            }
+            return toWords(num);
+        }
+
+        document.getElementById('mcsc-logo').src = 'file:///C:/Users/hp/Downloads/MCSC_LOGO.png';
+        document.getElementById('rahul-signature').src = 'file:///C:/Users/hp/Pictures/Screenshots/Screenshot%202025-08-15%20015854.png';
+
+        document.getElementById('mcsc-logo').onerror = function () {
+            this.style.display = 'none';
+            var fallback = document.createElement('div');
+            fallback.textContent = 'MCSC';
+            fallback.style.cssText = 'font-size: 24px; font-weight: 700; color: #5B9BD5;';
+            this.parentNode.appendChild(fallback);
+        };
+
+        document.getElementById('rahul-signature').onerror = function () {
+            this.style.display = 'none';
+            var fallback = document.createElement('div');
+            fallback.textContent = 'Signature';
+            fallback.style.cssText = 'font-family: cursive; font-size: 18px; color: #666;';
+            this.parentNode.appendChild(fallback);
+        };
+
+        window.onload = function () {
+            var logo = document.getElementById('mcsc-logo');
+            var signature = document.getElementById('rahul-signature');
+            logo.src = logo.src + '?' + new Date().getTime();
+            signature.src = signature.src + '?' + new Date().getTime();
+        };
+
+        document.getElementById('invoice-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+            const invoiceNo = document.getElementById('f-invoiceNo').value.trim();
+            const invoiceDate = document.getElementById('f-invoiceDate').value;
+            const customerName = document.getElementById('f-customerName').value.trim();
+            const customerEmail = document.getElementById('f-customerEmail').value.trim();
+            const customerPhone = document.getElementById('f-customerPhone').value.trim();
+            const propertyName = document.getElementById('f-propertyName').value.trim();
+            const checkin = document.getElementById('f-checkin').value;
+            const checkout = document.getElementById('f-checkout').value;
+            const guests = parseInt(document.getElementById('f-guests').value || '0', 10);
+            const rate = parseFloat(document.getElementById('f-rate').value || '0');
+            const nights = parseInt(document.getElementById('f-nights').value || '0', 10);
+
+            const params = new URLSearchParams();
+            if (invoiceNo) params.set('invoiceNo', invoiceNo);
+            if (invoiceDate) params.set('invoiceDate', invoiceDate);
+            if (customerName) params.set('customerName', customerName);
+            if (customerEmail) params.set('customerEmail', customerEmail);
+            if (customerPhone) params.set('customerPhone', customerPhone);
+            if (propertyName) params.set('propertyName', propertyName);
+            if (checkin) params.set('checkin', checkin);
+            if (checkout) params.set('checkout', checkout);
+            if (!isNaN(guests)) params.set('guests', String(guests));
+            if (!isNaN(rate)) params.set('rate', String(rate));
+            if (!isNaN(nights)) params.set('nights', String(nights));
+
+            // Default to standard invoice type
+            params.set('invoiceType', 'invoice');
+
+            // Navigate to the Next.js invoice page, which will read these as searchParams
+            window.location.href = '/invoice?' + params.toString();
+        });
+
+        document.getElementById('btn-print').addEventListener('click', function () {
+            window.print();
+        });
+    </script>
+</body>
+
+</html>

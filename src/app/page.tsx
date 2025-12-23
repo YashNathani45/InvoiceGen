@@ -317,7 +317,7 @@ export default function FormPage() {
             </div>
             <div className="hero-text">
               <h1>Generate Invoices</h1>
-              <p className="subtitle">Create professional invoices with accurate stay details and auto-calculated nights.</p>
+              <p className="subtitle">Create, download, and send professional invoices with ease.</p>
             </div>
           </div>
         </header>

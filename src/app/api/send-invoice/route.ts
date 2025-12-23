@@ -4,7 +4,21 @@ import { Buffer } from 'buffer'
 
 export async function POST(req: Request) {
     try {
-        const { toEmail, customerName, invoiceNo, pdfBase64, fileName } = await req.json()
+        const {
+            toEmail,
+            customerName,
+            invoiceNo,
+            pdfBase64,
+            fileName,
+            // Optional booking details (for richer email text)
+            propertyName,
+            checkinDate,
+            checkoutDate,
+            guests,
+            totalAmount,
+            paymentStatus,
+            invoiceDate,
+        } = await req.json()
 
         if (!toEmail || !pdfBase64) {
             return NextResponse.json(
@@ -37,9 +51,39 @@ export async function POST(req: Request) {
         })
 
         const subject = `Invoice ${invoiceNo || ''} from Mi Casa Su Casa`.trim()
+
+        const bookingDetailsLines = [
+            propertyName && `Property: ${propertyName}`,
+            checkinDate && `Check-in: ${checkinDate}`,
+            checkoutDate && `Check-out: ${checkoutDate}`,
+            guests && `Guests: ${guests}`,
+        ].filter(Boolean) as string[]
+
+        const invoiceSummaryLines = [
+            invoiceNo && `Invoice No: ${invoiceNo}`,
+            invoiceDate && `Invoice Date: ${invoiceDate}`,
+            totalAmount && `Total Amount: ₹${totalAmount}`,
+            paymentStatus && `Payment Status: ${paymentStatus}`,
+        ].filter(Boolean) as string[]
+
+        const bookingSection =
+            bookingDetailsLines.length > 0
+                ? `Booking details:\n${bookingDetailsLines.join('\n')}\n`
+                : ''
+
+        const invoiceSection =
+            invoiceSummaryLines.length > 0
+                ? `\nInvoice summary:\n${invoiceSummaryLines.join('\n')}\n`
+                : ''
+
         const text = `Dear ${customerName || 'Guest'},
 
-Please find attached your invoice.
+Thank you for choosing Mi Casa Su Casa${propertyName ? ` for your stay at ${propertyName}` : ''}.
+
+${bookingSection}${invoiceSection}
+Your detailed invoice is attached as a PDF with this email.
+
+If you have any questions or need any assistance before or during your stay, please feel free to reply to this email.
 
 Thank you for choosing Mi Casa Su Casa.
 

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 
-const VAPID_PUBLIC = 'BEBev2JJnGphDMc42AbL2k-GZ0PcEqff5bF2Lz7MUxokxuTexOxJbYiT6IbZDjNMJpS5gk-4N2w90Gv44nIiiKU';
+const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC || 'BEBev2JJnGphDMc42AbL2k-GZ0PcEqff5bF2Lz7MUxokxuTexOxJbYiT6IbZDjNMJpS5gk-4N2w90Gv44nIiiKU';
 
 export default function AdminNotificationsPage() {
     const [isSubscribed, setIsSubscribed] = useState(false)

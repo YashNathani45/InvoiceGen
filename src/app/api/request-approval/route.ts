@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
 import webpush from 'web-push';
+import { kv } from '@vercel/kv';
 
-const SUBSCRIPTIONS_FILE = path.join(process.cwd(), 'subscriptions.json');
-const PENDING_FILE = path.join(process.cwd(), 'pending-approvals.json');
+const SUBSCRIPTIONS_KEY = 'push_subscriptions';
+const PENDING_KEY = 'pending_approvals';
 
 // VAPID keys - you should generate your own and store in env variables
 // Generate with: npx web-push generate-vapid-keys
@@ -17,26 +16,33 @@ webpush.setVapidDetails(
     VAPID_PRIVATE
 );
 
-function getSubscriptions(): any[] {
+async function getSubscriptions(): Promise<any[]> {
     try {
-        if (fs.existsSync(SUBSCRIPTIONS_FILE)) {
-            return JSON.parse(fs.readFileSync(SUBSCRIPTIONS_FILE, 'utf-8'));
-        }
-    } catch { }
-    return [];
+        const subs = await kv.get<any[]>(SUBSCRIPTIONS_KEY);
+        return subs || [];
+    } catch (error) {
+        console.error('Error getting subscriptions:', error);
+        return [];
+    }
 }
 
-function getPending(): Record<string, any> {
+async function getPending(): Promise<Record<string, any>> {
     try {
-        if (fs.existsSync(PENDING_FILE)) {
-            return JSON.parse(fs.readFileSync(PENDING_FILE, 'utf-8'));
-        }
-    } catch { }
-    return {};
+        const pending = await kv.get<Record<string, any>>(PENDING_KEY);
+        return pending || {};
+    } catch (error) {
+        console.error('Error getting pending:', error);
+        return {};
+    }
 }
 
-function savePending(pending: Record<string, any>) {
-    fs.writeFileSync(PENDING_FILE, JSON.stringify(pending, null, 2));
+async function savePending(pending: Record<string, any>): Promise<void> {
+    try {
+        await kv.set(PENDING_KEY, pending);
+    } catch (error) {
+        console.error('Error saving pending:', error);
+        throw error;
+    }
 }
 
 export async function POST(req: NextRequest) {
@@ -46,7 +52,7 @@ export async function POST(req: NextRequest) {
         const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
         // Save pending approval
-        const pending = getPending();
+        const pending = await getPending();
         pending[requestId] = {
             invoiceNo,
             customerName,
@@ -55,10 +61,10 @@ export async function POST(req: NextRequest) {
             status: 'pending',
             createdAt: new Date().toISOString()
         };
-        savePending(pending);
+        await savePending(pending);
 
         // Send push to all subscribed admins
-        const subs = getSubscriptions();
+        const subs = await getSubscriptions();
 
         const payload = JSON.stringify({
             title: `📄 Invoice Approval: ${invoiceNo}`,
@@ -68,12 +74,12 @@ export async function POST(req: NextRequest) {
         });
 
         const sendPromises = subs.map(sub =>
-            webpush.sendNotification(sub, payload).catch((err: any) => {
+            webpush.sendNotification(sub, payload).catch(async (err: any) => {
                 console.error('Push failed:', err);
                 // Remove invalid subscription
                 if (err.statusCode === 410) {
-                    const updatedSubs = getSubscriptions().filter(s => s.endpoint !== sub.endpoint);
-                    fs.writeFileSync(SUBSCRIPTIONS_FILE, JSON.stringify(updatedSubs, null, 2));
+                    const updatedSubs = (await getSubscriptions()).filter(s => s.endpoint !== sub.endpoint);
+                    await kv.set(SUBSCRIPTIONS_KEY, updatedSubs);
                 }
             })
         );

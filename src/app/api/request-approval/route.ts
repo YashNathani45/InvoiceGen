@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
         });
 
         const sendPromises = subs.map(sub =>
-            webpush.sendNotification(sub, payload).catch(err => {
+            webpush.sendNotification(sub, payload).catch((err: any) => {
                 console.error('Push failed:', err);
                 // Remove invalid subscription
                 if (err.statusCode === 410) {

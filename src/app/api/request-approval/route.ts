@@ -19,9 +19,11 @@ webpush.setVapidDetails(
 async function getSubscriptions(): Promise<any[]> {
     try {
         const subs = await kv.get<any[]>(SUBSCRIPTIONS_KEY);
+        console.log('Retrieved subscriptions from KV:', subs ? subs.length : 0);
         return subs || [];
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error getting subscriptions:', error);
+        console.error('KV error details:', error.message, error.stack);
         return [];
     }
 }
@@ -65,6 +67,11 @@ export async function POST(req: NextRequest) {
 
         // Send push to all subscribed admins
         const subs = await getSubscriptions();
+        console.log('Subscriptions found for approval request:', subs.length);
+
+        if (subs.length === 0) {
+            console.warn('No subscriptions found in KV. Checking KV connection...');
+        }
 
         const payload = JSON.stringify({
             title: `📄 Invoice Approval: ${invoiceNo}`,

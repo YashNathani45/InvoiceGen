@@ -58,14 +58,31 @@ export default function AdminNotificationsPage() {
             })
 
             // Send to server
-            await fetch('/api/subscribe', {
+            console.log('Sending subscription to server...', subscription.endpoint)
+            const response = await fetch('/api/subscribe', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(subscription.toJSON())
             })
 
+            console.log('Subscription API response status:', response.status)
+            const result = await response.json()
+            console.log('Subscription API response:', result)
+            
+            if (!response.ok) {
+                const errorMsg = result.error || result.details || 'Failed to save subscription'
+                console.error('Subscription failed:', errorMsg)
+                throw new Error(errorMsg)
+            }
+
+            console.log('✅ Subscription saved successfully:', result)
             setIsSubscribed(true)
-            setSuccess('✅ Subscribed! You will now receive invoice approval requests.')
+            setSuccess(`✅ Subscribed! You will now receive invoice approval requests. (${result.count || 1} total subscribers)`)
+            
+            // Verify it was saved
+            const verifyResponse = await fetch('/api/check-subscriptions')
+            const verifyData = await verifyResponse.json()
+            console.log('✅ Verification - subscriptions in KV:', verifyData.count)
         } catch (err: any) {
             setError(err.message || 'Failed to subscribe')
         }

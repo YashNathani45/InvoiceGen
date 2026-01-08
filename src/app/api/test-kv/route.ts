@@ -1,27 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { kv } from '@vercel/kv';
+import { getDatabase } from '@/lib/mongodb';
 
-// Test endpoint to check KV configuration
+// Test endpoint to check MongoDB configuration
 export async function GET(req: NextRequest) {
     const envCheck = {
-        KV_REST_API_URL: process.env.KV_REST_API_URL ? '✅ Set' : '❌ Missing',
-        KV_REST_API_TOKEN: process.env.KV_REST_API_TOKEN ? '✅ Set' : '❌ Missing',
-        KV_REST_API_READ_ONLY_TOKEN: process.env.KV_REST_API_READ_ONLY_TOKEN ? '✅ Set' : '❌ Missing',
+        MONGODB_URI: process.env.MONGODB_URI ? '✅ Set' : '❌ Missing',
     };
 
-    // Try to connect to KV
-    let kvTest = 'Not tested';
+    // Try to connect to MongoDB
+    let mongoTest = 'Not tested';
     try {
-        await kv.get('test_key');
-        kvTest = '✅ KV connection successful';
+        const db = await getDatabase();
+        // Try a simple operation
+        await db.collection('test').findOne({});
+        mongoTest = '✅ MongoDB connection successful';
     } catch (error: any) {
-        kvTest = `❌ KV connection failed: ${error.message}`;
+        // If collection doesn't exist, that's fine - connection worked
+        if (error.message?.includes('not found') || error.code === 26) {
+            mongoTest = '✅ MongoDB connection successful (test collection not found is expected)';
+        } else {
+            mongoTest = `❌ MongoDB connection failed: ${error.message}`;
+        }
     }
 
     return NextResponse.json({
         environment: process.env.NODE_ENV,
         environmentVariables: envCheck,
-        kvConnection: kvTest,
+        mongoConnection: mongoTest,
         timestamp: new Date().toISOString()
     });
 }

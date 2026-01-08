@@ -1,34 +1,39 @@
 import { NextResponse } from 'next/server';
-import { kv } from '@vercel/kv';
+import { getDatabase } from '@/lib/mongodb';
 
-const PENDING_KEY = 'pending_approvals';
-
-async function getPending(): Promise<Record<string, any>> {
+async function getAllRequests(): Promise<any[]> {
     try {
-        const pending = await kv.get<Record<string, any>>(PENDING_KEY);
-        return pending || {};
+        const db = await getDatabase();
+        const requests = await db.collection('approval_requests')
+            .find({})
+            .sort({ createdAt: -1 })
+            .toArray();
+        return requests;
     } catch (error: any) {
-        console.error('Error getting pending requests:', error);
-        // For local development, return empty if KV is not configured
-        if (error.message?.includes('Missing required environment variables')) {
-            console.warn('KV not configured for local development. Returning empty requests.');
-            return {};
-        }
-        throw error;
+        console.error('Error getting requests:', error);
+        return [];
     }
 }
 
 export async function GET() {
     try {
-        const pending = await getPending();
+        const requests = await getAllRequests();
+        console.log('Admin requests - total:', requests.length);
 
-        // Convert to array and sort by date (newest first)
-        const requests = Object.entries(pending).map(([id, data]: [string, any]) => ({
-            id,
-            ...data
-        })).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        // Map MongoDB documents to expected format
+        const formattedRequests = requests.map((req: any) => ({
+            id: req.requestId || req._id,
+            invoiceNo: req.invoiceNo,
+            customerName: req.customerName,
+            amount: req.amount,
+            propertyName: req.propertyName,
+            status: req.status,
+            createdAt: req.createdAt,
+            respondedAt: req.respondedAt
+        }));
 
-        return NextResponse.json({ requests });
+        console.log('Admin requests - returning:', formattedRequests.length, 'requests');
+        return NextResponse.json({ requests: formattedRequests });
     } catch (error: any) {
         console.error('Error fetching admin requests:', error);
         return NextResponse.json({ 

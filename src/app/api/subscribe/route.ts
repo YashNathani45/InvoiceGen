@@ -1,41 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { kv } from '@vercel/kv';
-
-const SUBSCRIPTIONS_KEY = 'push_subscriptions';
+import { getDatabase } from '@/lib/mongodb';
 
 async function getSubscriptions(): Promise<any[]> {
     try {
-        // Check if KV is configured
-        if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
-            console.error('KV environment variables not set!');
-            console.error('KV_REST_API_URL:', process.env.KV_REST_API_URL ? 'set' : 'missing');
-            console.error('KV_REST_API_TOKEN:', process.env.KV_REST_API_TOKEN ? 'set' : 'missing');
-            throw new Error('KV not configured - missing environment variables');
-        }
-        
-        const subs = await kv.get<any[]>(SUBSCRIPTIONS_KEY);
-        console.log('Retrieved subscriptions from KV:', subs ? subs.length : 0);
-        return subs || [];
+        const db = await getDatabase();
+        const subscriptions = await db.collection('subscriptions').find({}).toArray();
+        console.log('Retrieved subscriptions from MongoDB:', subscriptions.length);
+        return subscriptions;
     } catch (error: any) {
         console.error('Error getting subscriptions:', error);
-        console.error('KV error details:', error.message, error.stack);
-        throw error; // Re-throw so caller knows it failed
+        throw error;
     }
 }
 
 async function saveSubscriptions(subs: any[]): Promise<void> {
     try {
-        console.log('Saving subscriptions to KV:', { key: SUBSCRIPTIONS_KEY, count: subs.length });
-        await kv.set(SUBSCRIPTIONS_KEY, subs);
+        const db = await getDatabase();
+        console.log('Saving subscriptions to MongoDB:', { count: subs.length });
+        
+        // Clear existing subscriptions and insert new ones
+        await db.collection('subscriptions').deleteMany({});
+        if (subs.length > 0) {
+            await db.collection('subscriptions').insertMany(subs);
+        }
+        
         // Verify it was saved
-        const verified = await kv.get<any[]>(SUBSCRIPTIONS_KEY);
-        console.log('Verified saved subscriptions:', verified ? verified.length : 0);
-        if (!verified || verified.length !== subs.length) {
-            throw new Error(`Subscription save verification failed. Expected ${subs.length}, got ${verified?.length || 0}`);
+        const verified = await db.collection('subscriptions').find({}).toArray();
+        console.log('Verified saved subscriptions:', verified.length);
+        if (verified.length !== subs.length) {
+            throw new Error(`Subscription save verification failed. Expected ${subs.length}, got ${verified.length}`);
         }
     } catch (error: any) {
         console.error('Error saving subscriptions:', error);
-        console.error('Error details:', error.message, error.stack);
         throw error;
     }
 }
@@ -59,14 +55,6 @@ export async function POST(req: NextRequest) {
             console.log('Current subscriptions count:', subs.length);
         } catch (error: any) {
             console.error('Failed to get existing subscriptions:', error);
-            // If KV is not configured, return helpful error
-            if (error.message?.includes('KV not configured')) {
-                return NextResponse.json({ 
-                    error: 'Database not configured',
-                    details: 'Upstash Redis (KV) environment variables are missing. Please check Vercel environment variables.',
-                    hint: 'Set KV_REST_API_URL, KV_REST_API_TOKEN, and KV_REST_API_READ_ONLY_TOKEN'
-                }, { status: 500 });
-            }
             // For other errors, try to continue (might be first subscription)
             console.warn('Continuing despite error...');
         }
@@ -94,7 +82,7 @@ export async function POST(req: NextRequest) {
                 return NextResponse.json({ 
                     error: 'Failed to save subscription',
                     details: error.message,
-                    hint: 'Check KV environment variables in Vercel'
+                    hint: 'Check MongoDB connection string in environment variables'
                 }, { status: 500 });
             }
         } else {

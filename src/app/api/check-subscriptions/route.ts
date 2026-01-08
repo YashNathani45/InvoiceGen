@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { kv } from '@vercel/kv';
-
-const SUBSCRIPTIONS_KEY = 'push_subscriptions';
+import { getDatabase } from '@/lib/mongodb';
 
 // Debug endpoint to check subscriptions
 export async function GET(req: NextRequest) {
     try {
-        const subs = await kv.get<any[]>(SUBSCRIPTIONS_KEY);
+        const db = await getDatabase();
+        const subscriptions = await db.collection('subscriptions').find({}).toArray();
         return NextResponse.json({ 
-            count: subs ? subs.length : 0,
-            subscriptions: subs || [],
-            key: SUBSCRIPTIONS_KEY
+            count: subscriptions.length,
+            subscriptions: subscriptions,
+            collection: 'subscriptions'
         });
     } catch (error: any) {
         return NextResponse.json({ 

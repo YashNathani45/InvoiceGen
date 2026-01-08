@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import webpush from 'web-push';
-import { kv } from '@vercel/kv';
-
-const SUBSCRIPTIONS_KEY = 'push_subscriptions';
-const PENDING_KEY = 'pending_approvals';
+import { getDatabase } from '@/lib/mongodb';
 
 // VAPID keys - you should generate your own and store in env variables
 // Generate with: npx web-push generate-vapid-keys
@@ -18,31 +15,26 @@ webpush.setVapidDetails(
 
 async function getSubscriptions(): Promise<any[]> {
     try {
-        const subs = await kv.get<any[]>(SUBSCRIPTIONS_KEY);
-        console.log('Retrieved subscriptions from KV:', subs ? subs.length : 0);
-        return subs || [];
+        const db = await getDatabase();
+        const subscriptions = await db.collection('subscriptions').find({}).toArray();
+        console.log('Retrieved subscriptions from MongoDB:', subscriptions.length);
+        return subscriptions;
     } catch (error: any) {
         console.error('Error getting subscriptions:', error);
-        console.error('KV error details:', error.message, error.stack);
         return [];
     }
 }
 
-async function getPending(): Promise<Record<string, any>> {
+async function savePendingRequest(requestId: string, requestData: any): Promise<void> {
     try {
-        const pending = await kv.get<Record<string, any>>(PENDING_KEY);
-        return pending || {};
-    } catch (error) {
-        console.error('Error getting pending:', error);
-        return {};
-    }
-}
-
-async function savePending(pending: Record<string, any>): Promise<void> {
-    try {
-        await kv.set(PENDING_KEY, pending);
-    } catch (error) {
-        console.error('Error saving pending:', error);
+        const db = await getDatabase();
+        await db.collection('approval_requests').insertOne({
+            requestId: requestId,
+            ...requestData
+        });
+        console.log('Saved pending request to MongoDB:', requestId);
+    } catch (error: any) {
+        console.error('Error saving pending request:', error);
         throw error;
     }
 }
@@ -54,23 +46,21 @@ export async function POST(req: NextRequest) {
         const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
         // Save pending approval
-        const pending = await getPending();
-        pending[requestId] = {
+        await savePendingRequest(requestId, {
             invoiceNo,
             customerName,
             amount,
             propertyName,
             status: 'pending',
             createdAt: new Date().toISOString()
-        };
-        await savePending(pending);
+        });
 
         // Send push to all subscribed admins
         const subs = await getSubscriptions();
         console.log('Subscriptions found for approval request:', subs.length);
 
         if (subs.length === 0) {
-            console.warn('No subscriptions found in KV. Checking KV connection...');
+            console.warn('No subscriptions found in MongoDB.');
         }
 
         const payload = JSON.stringify({
@@ -85,8 +75,9 @@ export async function POST(req: NextRequest) {
                 console.error('Push failed:', err);
                 // Remove invalid subscription
                 if (err.statusCode === 410) {
-                    const updatedSubs = (await getSubscriptions()).filter(s => s.endpoint !== sub.endpoint);
-                    await kv.set(SUBSCRIPTIONS_KEY, updatedSubs);
+                    const db = await getDatabase();
+                    await db.collection('subscriptions').deleteOne({ endpoint: sub.endpoint });
+                    console.log('Removed invalid subscription:', sub.endpoint);
                 }
             })
         );

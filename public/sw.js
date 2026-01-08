@@ -37,11 +37,24 @@ self.addEventListener('notificationclick', function (event) {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ requestId, approved: action === 'approve' })
-            }).then(() => {
+            }).then(response => {
+                if (!response.ok) {
+                    console.error('Approval response failed:', response.status);
+                    return self.registration.showNotification(
+                        '❌ Error',
+                        { body: 'Failed to send approval response', icon: '/MCSC_LOGO.png', tag: 'response-error' }
+                    );
+                }
                 // Show confirmation
                 return self.registration.showNotification(
                     action === 'approve' ? '✅ Approved' : '❌ Rejected',
                     { body: 'Response sent', icon: '/MCSC_LOGO.png', tag: 'response-confirm' }
+                );
+            }).catch(error => {
+                console.error('Approval response error:', error);
+                return self.registration.showNotification(
+                    '❌ Error',
+                    { body: 'Failed to send approval response', icon: '/MCSC_LOGO.png', tag: 'response-error' }
                 );
             })
         );

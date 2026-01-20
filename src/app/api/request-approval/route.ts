@@ -13,71 +13,40 @@ webpush.setVapidDetails(
     VAPID_PRIVATE
 );
 
-async function getSubscriptions(): Promise<any[]> {
-    try {
-        const db = await getDatabase();
-        const subscriptions = await db.collection('subscriptions').find({}).toArray();
-        console.log('Retrieved subscriptions from MongoDB:', subscriptions.length);
-        return subscriptions;
-    } catch (error: any) {
-        console.error('Error getting subscriptions:', error);
-        return [];
-    }
-}
-
-async function savePendingRequest(requestId: string, requestData: any): Promise<void> {
-    try {
-        const db = await getDatabase();
-        await db.collection('approval_requests').insertOne({
-            requestId: requestId,
-            ...requestData
-        });
-        console.log('Saved pending request to MongoDB:', requestId);
-    } catch (error: any) {
-        console.error('Error saving pending request:', error);
-        throw error;
-    }
-}
-
 export async function POST(req: NextRequest) {
     try {
         const { invoiceNo, customerName, amount, propertyName } = await req.json();
-
         const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-        // Save pending approval
-        await savePendingRequest(requestId, {
+        const db = await getDatabase();
+
+        // Persist the pending approval in MongoDB
+        await db.collection('approval_requests').insertOne({
+            requestId,
             invoiceNo,
             customerName,
             amount,
             propertyName,
             status: 'pending',
-            createdAt: new Date().toISOString()
+            createdAt: new Date(),
         });
 
-        // Send push to all subscribed admins
-        const subs = await getSubscriptions();
-        console.log('Subscriptions found for approval request:', subs.length);
-
-        if (subs.length === 0) {
-            console.warn('No subscriptions found in MongoDB.');
-        }
+        // Read subscriptions from MongoDB
+        const subs = await db.collection('subscriptions').find({}).toArray();
 
         const payload = JSON.stringify({
             title: `📄 Invoice Approval: ${invoiceNo}`,
             body: `${customerName} - ${propertyName}\nAmount: ₹${amount}`,
             tag: requestId,
-            requestId
+            requestId,
         });
 
-        const sendPromises = subs.map(sub =>
-            webpush.sendNotification(sub, payload).catch(async (err: any) => {
+        const sendPromises = subs.map((sub: any) =>
+            webpush.sendNotification(sub, payload).catch((err: any) => {
                 console.error('Push failed:', err);
                 // Remove invalid subscription
-                if (err.statusCode === 410) {
-                    const db = await getDatabase();
-                    await db.collection('subscriptions').deleteOne({ endpoint: sub.endpoint });
-                    console.log('Removed invalid subscription:', sub.endpoint);
+                if (err?.statusCode === 410 && sub?.endpoint) {
+                    db.collection('subscriptions').deleteOne({ endpoint: sub.endpoint }).catch(() => { });
                 }
             })
         );

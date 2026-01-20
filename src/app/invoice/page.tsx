@@ -274,22 +274,26 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
             if (!result) return
             const { pdf, fileName } = result
 
-            // Mobile browsers often block programmatic downloads; use a blob URL instead
             if (isMobile()) {
-                const blob = pdf.output('blob')
+                // Use ArrayBuffer → Blob to avoid data URI limits on mobile
+                const arrayBuffer = pdf.output('arraybuffer')
+                const blob = new Blob([arrayBuffer], { type: 'application/pdf' })
                 const url = URL.createObjectURL(blob)
-                const opened = window.open(url)
+                const opened = window.open(url, '_blank')
+
                 if (!opened) {
-                    // Fallback if popup blocked
+                    // Fallback if popup blocked: trigger a click download
                     const a = document.createElement('a')
                     a.href = url
                     a.download = fileName
+                    a.rel = 'noopener'
                     document.body.appendChild(a)
                     a.click()
                     document.body.removeChild(a)
                 }
-                // Revoke URL after a brief delay
-                setTimeout(() => URL.revokeObjectURL(url), 5000)
+
+                // Clean up after some time
+                setTimeout(() => URL.revokeObjectURL(url), 10000)
             } else {
                 pdf.save(fileName)
             }

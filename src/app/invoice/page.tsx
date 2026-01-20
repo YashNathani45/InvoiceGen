@@ -134,16 +134,17 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
         const target = document.getElementById('invoice-root')
         if (!target) return null
 
-        // Wait for images to load
+        // Wait for images to load and ensure layout is measured
         const images = target.querySelectorAll('img')
         await Promise.all(Array.from(images).map(img => {
-            if (img.complete) return Promise.resolve()
-            return new Promise((resolve, reject) => {
-                img.onload = resolve
-                img.onerror = resolve // Continue even if image fails
-                setTimeout(resolve, 1000) // Timeout after 1 second
+            if (img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) return Promise.resolve()
+            return new Promise((resolve) => {
+                img.onload = () => resolve(null)
+                img.onerror = () => resolve(null) // Continue even if image fails
+                setTimeout(() => resolve(null), 1200) // Timeout after ~1s
             })
         }))
+        await new Promise(requestAnimationFrame)
         const DESKTOP_WIDTH = 760
         // Clone the element for capture (to avoid affecting the visible page)
         const clone = target.cloneNode(true) as HTMLElement
@@ -153,7 +154,15 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
         clone.style.width = DESKTOP_WIDTH + 'px'
         clone.style.maxWidth = DESKTOP_WIDTH + 'px'
         clone.style.boxSizing = 'border-box'
+        clone.style.display = 'block'
         document.body.appendChild(clone)
+
+        // Measure height; bail if zero to avoid canvas errors
+        const measuredHeight = Math.max(clone.scrollHeight, clone.offsetHeight, target.scrollHeight, target.offsetHeight)
+        if (!measuredHeight || measuredHeight <= 0) {
+            document.body.removeChild(clone)
+            throw new Error('Invoice content not ready to render (height is 0)')
+        }
 
         // Get the width for capture
         const capturePxWidth = DESKTOP_WIDTH
@@ -172,9 +181,9 @@ const canvas = await html2canvas(clone, {
     allowTaint: true, // Change to true for mobile
     scrollY: 0,
     width: capturePxWidth,
-    height: clone.scrollHeight,
+    height: measuredHeight,
     windowWidth: DESKTOP_WIDTH,
-    windowHeight: clone.scrollHeight,
+    windowHeight: measuredHeight,
     // Add these mobile-specific options:
     imageTimeout: 15000,
     removeContainer: true,

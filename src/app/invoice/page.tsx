@@ -159,19 +159,27 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
         const capturePxWidth = DESKTOP_WIDTH
 
         // Use a balanced scale for crisp rendering with smaller file size
-        const scale = 2
-        const canvas = await html2canvas(clone, {
-            scale: scale,
-            backgroundColor: '#ffffff',
-            useCORS: true,
-            logging: false,
-            allowTaint: false,
-            scrollY: 0,
-            width: capturePxWidth,
-            height: clone.scrollHeight,
-            windowWidth: DESKTOP_WIDTH, // simulate desktop viewport for consistent layout
-            windowHeight: clone.scrollHeight
-        })
+        // Change scale from 2 to 1.5 for mobile
+const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '')
+const scale = isMobileDevice ? 1.5 : 2 // Lower scale for mobile
+
+// Add mobile-specific canvas options
+const canvas = await html2canvas(clone, {
+    scale: scale,
+    backgroundColor: '#ffffff',
+    useCORS: true,
+    logging: false,
+    allowTaint: true, // Change to true for mobile
+    scrollY: 0,
+    width: capturePxWidth,
+    height: clone.scrollHeight,
+    windowWidth: DESKTOP_WIDTH,
+    windowHeight: clone.scrollHeight,
+    // Add these mobile-specific options:
+    imageTimeout: 15000,
+    removeContainer: true,
+    foreignObjectRendering: false // Disable for better mobile compatibility
+})
 
         // Clean up detached clone
         document.body.removeChild(clone)
@@ -269,40 +277,49 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
 
     async function downloadInvoice() {
         setIsDownloading(true)
+        setToast({ type: 'info', message: 'Generating PDF...' })
+        
         try {
             const result = await buildInvoicePdf()
-            if (!result) return
+            if (!result) {
+                throw new Error('Failed to generate PDF')
+            }
             const { pdf, fileName } = result
-
+    
             if (isMobile()) {
-                // Use ArrayBuffer → Blob to avoid data URI limits on mobile
                 const arrayBuffer = pdf.output('arraybuffer')
                 const blob = new Blob([arrayBuffer], { type: 'application/pdf' })
                 const url = URL.createObjectURL(blob)
-                const opened = window.open(url, '_blank')
-
-                if (!opened) {
-                    // Fallback if popup blocked: trigger a click download
-                    const a = document.createElement('a')
-                    a.href = url
-                    a.download = fileName
-                    a.rel = 'noopener'
-                    document.body.appendChild(a)
-                    a.click()
+                
+                // Try download link first (works better on mobile)
+                const a = document.createElement('a')
+                a.style.display = 'none'
+                a.href = url
+                a.download = fileName
+                document.body.appendChild(a)
+                a.click()
+                
+                // Fallback: open in new tab after short delay
+                setTimeout(() => {
+                    const opened = window.open(url, '_blank')
+                    if (!opened) {
+                        setToast({ type: 'info', message: 'PDF ready. Check your downloads or allow popups.' })
+                    }
+                }, 500)
+                
+                setTimeout(() => {
                     document.body.removeChild(a)
-                }
-
-                // Clean up after some time
-                setTimeout(() => URL.revokeObjectURL(url), 10000)
+                    URL.revokeObjectURL(url)
+                }, 10000)
             } else {
                 pdf.save(fileName)
             }
-
+    
             setToast({ type: 'success', message: 'Invoice downloaded successfully' })
             setTimeout(() => setToast(null), 3000)
         } catch (error: any) {
-            console.error('Download failed', error)
-            setToast({ type: 'error', message: 'Failed to download invoice' })
+            console.error('Download failed:', error)
+            setToast({ type: 'error', message: error.message || 'Failed to download invoice' })
             setTimeout(() => setToast(null), 4000)
         } finally {
             setIsDownloading(false)
@@ -311,31 +328,32 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
 
     async function sendInvoiceByEmail() {
         if (isSending) return
-
+    
         const email = (emailToSend || p.customerEmail || '').trim()
         if (!email) {
             setToast({ type: 'error', message: 'Please enter a customer email address first.' })
             setTimeout(() => setToast(null), 4000)
             return
         }
-
-        const result = await buildInvoicePdf()
-        if (!result) {
-            setToast({ type: 'error', message: 'Could not build invoice PDF' })
-            setTimeout(() => setToast(null), 4000)
-            return
-        }
-
-        const { pdf, fileName } = result
-
-        // Get base64 PDF data to send to the server
-        const pdfDataUri = pdf.output('datauristring')
-        const base64 = pdfDataUri.split(',')[1] || ''
-
+    
         try {
             setIsSending(true)
-            setToast(null)
-
+            setToast({ type: 'info', message: 'Generating PDF...' })
+    
+            const result = await buildInvoicePdf()
+            if (!result) {
+                setToast({ type: 'error', message: 'Could not build invoice PDF' })
+                setTimeout(() => setToast(null), 4000)
+                return
+            }
+    
+            const { pdf, fileName } = result
+    
+            setToast({ type: 'info', message: 'Sending email...' })
+    
+            const pdfDataUri = pdf.output('datauristring')
+            const base64 = pdfDataUri.split(',')[1] || ''
+    
             const res = await fetch('/api/send-invoice', {
                 method: 'POST',
                 headers: {
@@ -345,7 +363,6 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
                     toEmail: email,
                     customerName: p.customerName,
                     invoiceNo: p.invoiceNo,
-                    // Extra booking details for a richer email message
                     propertyName: p.propertyName,
                     checkinDate: datePretty(p.checkin),
                     checkoutDate: datePretty(p.checkout),
@@ -357,19 +374,20 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
                     fileName,
                 }),
             })
-
+    
+            const responseData = await res.json() // Add this to catch actual error
+    
             if (!res.ok) {
-                throw new Error('Failed to send')
+                throw new Error(responseData.error || 'Failed to send')
             }
-
+    
             setToast({ type: 'success', message: `Invoice emailed to ${email}` })
-            // Auto-hide toast after a few seconds
             setTimeout(() => {
                 setToast(current => (current && current.type === 'success' ? null : current))
             }, 4000)
-        } catch (err) {
-            console.error(err)
-            setToast({ type: 'error', message: 'Could not send invoice email. Please try again.' })
+        } catch (err: any) {
+            console.error('Email error:', err)
+            setToast({ type: 'error', message: err.message || 'Could not send invoice email. Please try again.' })
             setTimeout(() => {
                 setToast(current => (current && current.type === 'error' ? null : current))
             }, 5000)

@@ -8,6 +8,9 @@ function formatINR(n: number) {
     return Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+// Round to nearest rupee to avoid floating point drift
+const toMoney = (value: number) => Math.round(value + Number.EPSILON)
+
 function numberToWordsIndian(num: number) {
     const n = Math.floor(Number(num) || 0)
     if (n === 0) return 'Zero'
@@ -73,17 +76,17 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
     const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null)
     const [fabOpen, setFabOpen] = useState(false)
     const [awaitingApproval, setAwaitingApproval] = useState(false)
-    const subtotal = (p.rate || 0) * (p.nights || 0)
-    const taxAmount = ((p.taxRate || 0) / 100) * subtotal
+    const subtotal = toMoney((p.rate || 0) * (p.nights || 0))
+    const taxAmount = toMoney(((p.taxRate || 0) / 100) * subtotal)
     const isProforma = (p.invoiceType || '').toLowerCase() === 'proforma'
     const depositStatus = (isProforma ? 'none' : (p.depositStatus || 'none')) as 'none' | 'paid' | 'pending'
-    const depositCharge = depositStatus === 'none' ? 0 : Math.max(0, p.deposit || 0)
+    const depositCharge = depositStatus === 'none' ? 0 : toMoney(Math.max(0, p.deposit || 0))
     const paidDeposit = depositStatus === 'paid' ? depositCharge : 0
     const pendingDeposit = depositStatus === 'pending' ? depositCharge : 0
-    const baseTotal = subtotal + taxAmount
-    const displayTotal = baseTotal + paidDeposit
+    const baseTotal = toMoney(subtotal + taxAmount)
+    const displayTotal = toMoney(baseTotal + paidDeposit)
     let paymentStatus = (p.paymentStatus || 'unpaid') as 'unpaid' | 'partial' | 'full'
-    const manualPaid = isProforma ? 0 : Math.max(0, p.amountPaid || 0)
+    const manualPaid = isProforma ? 0 : toMoney(Math.max(0, p.amountPaid || 0))
     if (isProforma) {
         paymentStatus = 'unpaid'
     }
@@ -92,8 +95,8 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
         : paymentStatus === 'partial'
             ? Math.min(baseTotal, manualPaid)
             : 0
-    const totalPaid = otherPaidAmount + paidDeposit
-    const balance = Math.max(0, baseTotal - otherPaidAmount) + pendingDeposit
+    const totalPaid = toMoney(otherPaidAmount + paidDeposit)
+    const balance = toMoney(Math.max(0, baseTotal - otherPaidAmount) + pendingDeposit)
     const amountInWordsTotal = displayTotal
     const qtyText = `${p.nights} ${p.nights === 1 ? 'NIGHT' : 'NIGHTS'}`
 
@@ -262,16 +265,39 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
         setAwaitingApproval(false)
     }
 
+    const isMobile = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '')
+
     async function downloadInvoice() {
         setIsDownloading(true)
         try {
             const result = await buildInvoicePdf()
             if (!result) return
             const { pdf, fileName } = result
-            pdf.save(fileName)
+
+            // Mobile browsers often block programmatic downloads; use a blob URL instead
+            if (isMobile()) {
+                const blob = pdf.output('blob')
+                const url = URL.createObjectURL(blob)
+                const opened = window.open(url)
+                if (!opened) {
+                    // Fallback if popup blocked
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = fileName
+                    document.body.appendChild(a)
+                    a.click()
+                    document.body.removeChild(a)
+                }
+                // Revoke URL after a brief delay
+                setTimeout(() => URL.revokeObjectURL(url), 5000)
+            } else {
+                pdf.save(fileName)
+            }
+
             setToast({ type: 'success', message: 'Invoice downloaded successfully' })
             setTimeout(() => setToast(null), 3000)
-        } catch (error) {
+        } catch (error: any) {
+            console.error('Download failed', error)
             setToast({ type: 'error', message: 'Failed to download invoice' })
             setTimeout(() => setToast(null), 4000)
         } finally {
@@ -290,7 +316,11 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
         }
 
         const result = await buildInvoicePdf()
-        if (!result) return
+        if (!result) {
+            setToast({ type: 'error', message: 'Could not build invoice PDF' })
+            setTimeout(() => setToast(null), 4000)
+            return
+        }
 
         const { pdf, fileName } = result
 

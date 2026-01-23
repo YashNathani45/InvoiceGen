@@ -404,24 +404,43 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
             const url = URL.createObjectURL(blob)
     
             if (isMobile()) {
-                // For mobile, create a download link and trigger it
-                const a = document.createElement('a')
-                a.style.display = 'none'
-                a.href = url
-                a.download = fileName
-                a.setAttribute('download', fileName) // Ensure download attribute is set
-                document.body.appendChild(a)
-                
-                // Trigger download
-                a.click()
-                
-                // Clean up after a delay
-                setTimeout(() => {
-                    if (document.body.contains(a)) {
-                        document.body.removeChild(a)
-                    }
-                    URL.revokeObjectURL(url)
-                }, 1000)
+                // For mobile, convert blob to data URL (more reliable on mobile browsers)
+                const reader = new FileReader()
+                reader.onloadend = () => {
+                    const dataUrl = reader.result as string
+                    const a = document.createElement('a')
+                    a.href = dataUrl
+                    a.download = fileName
+                    a.style.display = 'none'
+                    document.body.appendChild(a)
+                    
+                    // Trigger download
+                    a.click()
+                    
+                    // Clean up
+                    setTimeout(() => {
+                        if (document.body.contains(a)) {
+                            document.body.removeChild(a)
+                        }
+                        URL.revokeObjectURL(url)
+                    }, 1000)
+                }
+                reader.onerror = () => {
+                    // Fallback to blob URL if data URL fails
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = fileName
+                    a.style.display = 'none'
+                    document.body.appendChild(a)
+                    a.click()
+                    setTimeout(() => {
+                        if (document.body.contains(a)) {
+                            document.body.removeChild(a)
+                        }
+                        URL.revokeObjectURL(url)
+                    }, 1000)
+                }
+                reader.readAsDataURL(blob)
             } else {
                 // Desktop: trigger download
                 const a = document.createElement('a')

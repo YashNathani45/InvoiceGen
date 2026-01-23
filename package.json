@@ -8,7 +8,7 @@
         "start": "next start"
     },
     "dependencies": {
-        "@sparticuz/chromium": "^143.0.4",
+        "@sparticuz/chromium-min": "^143.0.4",
         "@vercel/kv": "^3.0.0",
         "clsx": "^2.1.1",
         "html2canvas": "1.4.1",

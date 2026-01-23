@@ -307,20 +307,59 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
 </html>`
 
         // Send HTML to API
-        const res = await fetch('/api/generate-pdf', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ html: htmlContent }),
-        })
-
-        if (!res.ok) {
-            const error = await res.json().catch(() => ({ error: 'Failed to generate PDF' }))
-            throw new Error(error.error || 'Failed to generate PDF')
+        let res
+        try {
+            res = await fetch('/api/generate-pdf', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ html: htmlContent }),
+            })
+        } catch (fetchError: any) {
+            throw new Error(`Network error: ${fetchError.message || 'Failed to connect to server'}`)
         }
 
-        const blob = await res.blob()
+        if (!res.ok) {
+            let errorMessage = 'Failed to generate PDF'
+            try {
+                const errorData = await res.json()
+                errorMessage = errorData.error || errorData.details || errorMessage
+                if (errorData.details) {
+                    errorMessage += `: ${errorData.details}`
+                }
+            } catch {
+                // If JSON parsing fails, try to get text
+                try {
+                    const text = await res.text()
+                    if (text) {
+                        errorMessage = `Server error (${res.status}): ${text.substring(0, 200)}`
+                    } else {
+                        errorMessage = `Server error: ${res.status} ${res.statusText}`
+                    }
+                } catch {
+                    errorMessage = `Server error: ${res.status} ${res.statusText}`
+                }
+            }
+            throw new Error(errorMessage)
+        }
+
+        let blob
+        try {
+            blob = await res.blob()
+            // Check if blob is actually a PDF (might be an error response)
+            if (blob.type && !blob.type.includes('pdf') && blob.size < 100) {
+                const text = await blob.text()
+                try {
+                    const errorData = JSON.parse(text)
+                    throw new Error(errorData.error || errorData.details || 'Invalid PDF response from server')
+                } catch {
+                    throw new Error(`Server returned invalid response: ${text.substring(0, 200)}`)
+                }
+            }
+        } catch (blobError: any) {
+            throw new Error(`Failed to read PDF blob: ${blobError.message || blobError.toString()}`)
+        }
 
         // Generate filename: InvoiceNumber_CustomerName.pdf
         const safe = (s: string) => s.replace(/[^a-z0-9-_]/gi, '_')
@@ -456,8 +495,12 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
             setTimeout(() => setToast(null), 3000)
         } catch (error: any) {
             console.error('Download failed:', error)
-            setToast({ type: 'error', message: error.message || 'Failed to download invoice' })
-            setTimeout(() => setToast(null), 4000)
+            const errorMessage = error.message || error.toString() || 'Failed to download invoice'
+            setToast({ 
+                type: 'error', 
+                message: `Failed to generate invoice: ${errorMessage}` 
+            })
+            setTimeout(() => setToast(null), 6000) // Show longer for error details
         } finally {
             setIsDownloading(false)
         }

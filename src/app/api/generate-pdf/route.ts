@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import puppeteer from 'puppeteer'
-import path from 'path'
 import os from 'os'
+import path from 'path'
 
 export async function POST(req: NextRequest) {
     let browser
@@ -15,15 +15,40 @@ export async function POST(req: NextRequest) {
             )
         }
 
-        // Get Puppeteer's Chrome path
-        const executablePath = puppeteer.executablePath()
+        // Get Chrome executable path based on OS
+        let executablePath: string
         
+        try {
+            // Try to get Puppeteer's default path first
+            executablePath = puppeteer.executablePath()
+        } catch (e) {
+            // Fallback: manually construct path
+            const homeDir = os.homedir()
+            const platform = os.platform()
+            
+            if (platform === 'win32') {
+                // Windows path
+                const cachePath = path.join(homeDir, '.cache', 'puppeteer', 'chrome')
+                executablePath = path.join(cachePath, 'win64-144.0.7559.96', 'chrome-win64', 'chrome.exe')
+            } else if (platform === 'linux') {
+                // Linux path
+                const cachePath = path.join(homeDir, '.cache', 'puppeteer', 'chrome')
+                executablePath = path.join(cachePath, 'linux-144.0.7559.96', 'chrome-linux64', 'chrome')
+            } else if (platform === 'darwin') {
+                // macOS path
+                const cachePath = path.join(homeDir, '.cache', 'puppeteer', 'chrome')
+                executablePath = path.join(cachePath, 'mac-144.0.7559.96', 'chrome-mac-x64', 'Google Chrome for Testing.app', 'Contents', 'MacOS', 'Google Chrome for Testing')
+            } else {
+                throw new Error('Unsupported platform: ' + platform)
+            }
+        }
+
         console.log('Using Chrome at:', executablePath)
 
         // Launch Puppeteer
         browser = await puppeteer.launch({
             headless: true,
-            executablePath: executablePath, // Use Puppeteer's bundled Chrome
+            executablePath: executablePath,
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
@@ -118,3 +143,4 @@ export async function POST(req: NextRequest) {
         )
     }
 }
+ 

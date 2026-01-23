@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import puppeteer from 'puppeteer'
+import path from 'path'
+import os from 'os'
 
 export async function POST(req: NextRequest) {
     let browser
@@ -13,9 +15,15 @@ export async function POST(req: NextRequest) {
             )
         }
 
-        // Launch Puppeteer with Vercel-compatible settings
+        // Get Puppeteer's Chrome path
+        const executablePath = puppeteer.executablePath()
+        
+        console.log('Using Chrome at:', executablePath)
+
+        // Launch Puppeteer
         browser = await puppeteer.launch({
             headless: true,
+            executablePath: executablePath, // Use Puppeteer's bundled Chrome
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
@@ -29,45 +37,40 @@ export async function POST(req: NextRequest) {
 
         const page = await browser.newPage()
 
-        // Increase timeout for large HTML content
-        page.setDefaultNavigationTimeout(60000) // 60 seconds
-
         // Set viewport to match invoice width (760px)
         await page.setViewport({
             width: 760,
-            height: 1200, // Will auto-expand
+            height: 1200,
             deviceScaleFactor: 2,
         })
 
-        // Set content with HTML - use 'load' instead of 'networkidle0' since images are base64
+        // Set content with HTML
         await page.setContent(html, {
-            waitUntil: 'load', // Changed from 'networkidle0' - better for static HTML with embedded images
+            waitUntil: 'load',
             timeout: 60000,
         })
 
-        // Wait for images to load (all should be base64, so this should be instant)
+        // Wait for images to load
         await page.evaluate(() => {
             return Promise.all(
                 Array.from(document.images).map((img) => {
-                    // Base64 images are already loaded
                     if (img.src.startsWith('data:')) {
                         return Promise.resolve()
                     }
-                    // For any non-base64 images, wait briefly
                     if (img.complete && img.naturalWidth > 0) {
                         return Promise.resolve()
                     }
                     return new Promise((resolve) => {
-                        img.onload = resolve
-                        img.onerror = resolve // Continue even if image fails
-                        setTimeout(resolve, 1000) // Shorter timeout since most are base64
+                        img.onload = () => resolve(null)
+                        img.onerror = () => resolve(null)
+                        setTimeout(() => resolve(null), 1000)
                     })
                 })
             )
         })
 
         // Small delay to ensure layout is stable
-        await new Promise(resolve => setTimeout(resolve, 200))
+        await new Promise(resolve => setTimeout(resolve, 300))
 
         // Get the actual content height
         const contentHeight = await page.evaluate(() => {
@@ -79,6 +82,8 @@ export async function POST(req: NextRequest) {
                 document.documentElement.offsetHeight
             )
         })
+
+        console.log('PDF dimensions:', 760, 'x', contentHeight)
 
         // Generate PDF - single page, exact width and height
         const pdfBuffer = await page.pdf({
@@ -113,4 +118,3 @@ export async function POST(req: NextRequest) {
         )
     }
 }
-

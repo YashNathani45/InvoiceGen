@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import puppeteer from 'puppeteer-core'
-import chromium from '@sparticuz/chromium-min'
+import puppeteer from 'puppeteer'
 
 export async function POST(req: NextRequest) {
     let browser
@@ -14,30 +13,18 @@ export async function POST(req: NextRequest) {
             )
         }
 
-        // Launch Puppeteer with Vercel-compatible Chromium
-        const isVercel = !!process.env.VERCEL
-        
+        // Launch Puppeteer with Vercel-compatible settings
         browser = await puppeteer.launch({
-            args: isVercel
-                ? [
-                    ...chromium.args,
-                    '--hide-scrollbars',
-                    '--disable-web-security',
-                    '--disable-features=IsolateOrigins,site-per-process',
-                ]
-                : [
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-accelerated-2d-canvas',
-                    '--disable-gpu',
-                    '--disable-web-security',
-                    '--disable-features=IsolateOrigins,site-per-process',
-                ],
-            executablePath: isVercel
-                ? await chromium.executablePath()
-                : undefined, // Use system Chrome in local dev
             headless: true,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--disable-gpu',
+                '--disable-web-security',
+                '--disable-features=IsolateOrigins,site-per-process',
+            ],
         })
 
         const page = await browser.newPage()

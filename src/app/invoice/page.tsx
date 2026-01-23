@@ -1,8 +1,6 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import html2canvas from 'html2canvas'
-import jsPDF from 'jspdf'
 
 function formatINR(n: number) {
     return Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -132,96 +130,204 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
 
     async function buildInvoicePdf() {
         const target = document.getElementById('invoice-root')
-        if (!target) return null
+        if (!target) {
+            throw new Error('Invoice element not found')
+        }
 
-        // Wait for images to load and ensure layout is measured
+        // Wait for images to load
         const images = target.querySelectorAll('img')
         await Promise.all(Array.from(images).map(img => {
             if (img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) return Promise.resolve()
             return new Promise((resolve) => {
-                img.onload = () => resolve(null)
-                img.onerror = () => resolve(null) // Continue even if image fails
-                setTimeout(() => resolve(null), 1200) // Timeout after ~1s
+                const timeout = setTimeout(() => resolve(null), 3000)
+                img.onload = () => { clearTimeout(timeout); resolve(null) }
+                img.onerror = () => { clearTimeout(timeout); resolve(null) }
             })
         }))
-        await new Promise(requestAnimationFrame)
-        const DESKTOP_WIDTH = 760
-        // Clone the element for capture (to avoid affecting the visible page)
+
+        // Small delay for layout stability
+        await new Promise(resolve => setTimeout(resolve, 300))
+
+        // Clone the invoice element
         const clone = target.cloneNode(true) as HTMLElement
-        clone.style.position = 'absolute'
-        clone.style.left = '-9999px'
-        clone.style.top = '0'
-        clone.style.width = DESKTOP_WIDTH + 'px'
-        clone.style.maxWidth = DESKTOP_WIDTH + 'px'
-        clone.style.boxSizing = 'border-box'
-        clone.style.display = 'block'
-        document.body.appendChild(clone)
 
-        // Measure height; bail if zero to avoid canvas errors
-        const measuredHeight = Math.max(clone.scrollHeight, clone.offsetHeight, target.scrollHeight, target.offsetHeight)
-        if (!measuredHeight || measuredHeight <= 0) {
-            document.body.removeChild(clone)
-            throw new Error('Invoice content not ready to render (height is 0)')
-        }
-
-        // Get the width for capture
-        const capturePxWidth = DESKTOP_WIDTH
-
-        // Use a balanced scale for crisp rendering with smaller file size
-        // Change scale from 2 to 1.5 for mobile
-const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '')
-const scale = isMobileDevice ? 1.5 : 2 // Lower scale for mobile
-
-// Add mobile-specific canvas options
-const canvas = await html2canvas(clone, {
-    scale: scale,
-    backgroundColor: '#ffffff',
-    useCORS: true,
-    logging: false,
-    allowTaint: true, // Change to true for mobile
-    scrollY: 0,
-    width: capturePxWidth,
-    height: measuredHeight,
-    windowWidth: DESKTOP_WIDTH,
-    windowHeight: measuredHeight,
-    // Add these mobile-specific options:
-    imageTimeout: 15000,
-    removeContainer: true,
-    foreignObjectRendering: false // Disable for better mobile compatibility
-})
-
-        // Clean up detached clone
-        document.body.removeChild(clone)
-
-        // Use high-quality JPEG for much smaller file size while keeping visual quality
-        const imgData = canvas.toDataURL('image/jpeg', 0.9)
-
-        // Match PDF page size exactly to the rendered canvas so there are no big inner margins
-        const pxToMm = 0.264583 // 1px ≈ 0.264583mm
-        const pdfW = canvas.width * pxToMm
-        const pdfH = canvas.height * pxToMm
-
-        // Create PDF with a custom page size matching the invoice rendering
-        const pdf = new jsPDF({
-            orientation: 'p',
-            unit: 'mm',
-            format: [pdfW, pdfH],
-            // Enable internal compression to keep PDF size small
-            compress: true
+        // Hide UI elements in the clone
+        const uiElements = clone.querySelectorAll('.desktop-toolbar, .fab-container, .toast-container, .loading-overlay')
+        uiElements.forEach(el => {
+            (el as HTMLElement).style.display = 'none'
         })
 
-        // Add a small margin around the content so it doesn't touch the edges
-        const margin = 5 // mm
-        const drawW = pdfW - margin * 2
-        const drawH = pdfH - margin * 2
-        pdf.addImage(imgData, 'JPEG', margin, margin, drawW, drawH)
+        // Ensure logo has explicit inline styles for PDF rendering
+        const logoImg = clone.querySelector('.mcsc-logo-img') as HTMLImageElement
+        if (logoImg) {
+            // Apply all styles as inline to ensure Puppeteer renders them correctly
+            logoImg.setAttribute('style', 
+                'height: 110px; ' +
+                'width: auto; ' +
+                'object-fit: contain; ' +
+                'border: 1px solid #E0E0E0; ' +
+                'padding: 8px; ' +
+                'border-radius: 100px; ' +
+                'box-sizing: border-box; ' +
+                'display: block;'
+            )
+        }
 
+        // Gather all styles from stylesheets
+        const allStyles: string[] = []
+        
+        // Get styles from all stylesheets
+        Array.from(document.styleSheets).forEach((sheet) => {
+            try {
+                if (sheet.cssRules) {
+                    Array.from(sheet.cssRules).forEach((rule) => {
+                        allStyles.push(rule.cssText)
+                    })
+                }
+            } catch (e) {
+                // Cross-origin stylesheets may throw errors, skip them
+            }
+        })
+
+        // Get inline styles from style tags
+        const styleTags = document.querySelectorAll('style')
+        styleTags.forEach(style => {
+            if (style.textContent) {
+                allStyles.push(style.textContent)
+            }
+        })
+
+        // Convert images to base64 for server-side rendering
+        const cloneImages = clone.querySelectorAll('img')
+        await Promise.all(Array.from(cloneImages).map(async (img) => {
+            if (img.src && !img.src.startsWith('data:')) {
+                try {
+                    // Convert image to base64
+                    const base64 = await new Promise<string>((resolve) => {
+                        const image = new Image()
+                        image.crossOrigin = 'anonymous'
+                        
+                        image.onload = () => {
+                            try {
+                                const canvas = document.createElement('canvas')
+                                const ctx = canvas.getContext('2d')
+                                if (!ctx) {
+                                    resolve('')
+                                    return
+                                }
+                                
+                                canvas.width = image.naturalWidth || image.width || 100
+                                canvas.height = image.naturalHeight || image.height || 100
+                                
+                                if (canvas.width > 0 && canvas.height > 0) {
+                                    ctx.drawImage(image, 0, 0)
+                                    resolve(canvas.toDataURL('image/png'))
+                                } else {
+                                    resolve('')
+                                }
+                            } catch {
+                                resolve('')
+                            }
+                        }
+                        
+                        image.onerror = () => resolve('')
+                        
+                        // Handle relative URLs
+                        if (img.src.startsWith('/')) {
+                            image.src = window.location.origin + img.src
+                        } else if (!img.src.startsWith('http')) {
+                            image.src = new URL(img.src, window.location.origin).href
+                        } else {
+                            image.src = img.src
+                        }
+                    })
+                    
+                    if (base64) {
+                        img.src = base64
+                    }
+                } catch (error) {
+                    console.error('Failed to convert image to base64:', error)
+                    // Fallback: try absolute URL
+                    try {
+                        if (img.src.startsWith('/')) {
+                            img.src = window.location.origin + img.src
+                        } else if (!img.src.startsWith('http')) {
+                            img.src = new URL(img.src, window.location.origin).href
+                        }
+                    } catch {
+                        // Keep original if all fails
+                    }
+                }
+            }
+        }))
+
+        // Build complete HTML document
+        const htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=760, initial-scale=1.0">
+    <title>Invoice</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            color: #1a1a1a;
+            margin: 0;
+            padding: 0;
+            width: 760px;
+            background: white;
+        }
+        ${allStyles.join('\n')}
+        .desktop-toolbar,
+        .fab-container,
+        .toast-container,
+        .loading-overlay {
+            display: none !important;
+        }
+        .mcsc-logo-img {
+            height: 110px !important;
+            width: auto !important;
+            object-fit: contain !important;
+            border: 1px solid #E0E0E0 !important;
+            padding: 8px !important;
+            border-radius: 100px !important;
+            box-sizing: border-box !important;
+            display: block !important;
+        }
+    </style>
+</head>
+<body>
+    ${clone.outerHTML}
+</body>
+</html>`
+
+        // Send HTML to API
+        const res = await fetch('/api/generate-pdf', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ html: htmlContent }),
+        })
+
+        if (!res.ok) {
+            const error = await res.json().catch(() => ({ error: 'Failed to generate PDF' }))
+            throw new Error(error.error || 'Failed to generate PDF')
+        }
+
+        const blob = await res.blob()
+
+        // Generate filename: InvoiceNumber_CustomerName.pdf
         const safe = (s: string) => s.replace(/[^a-z0-9-_]/gi, '_')
         const fileName = `${safe(p.invoiceNo || 'INV')}_${safe(p.customerName || 'Customer')}.pdf`
 
-        return { pdf, fileName }
+        return { blob, fileName }
     }
-
     async function requestApprovalAndDownload() {
         setAwaitingApproval(true)
         setToast({ type: 'info', message: '⏳ Requesting approval from admin...' })
@@ -293,35 +399,38 @@ const canvas = await html2canvas(clone, {
             if (!result) {
                 throw new Error('Failed to generate PDF')
             }
-            const { pdf, fileName } = result
+            const { blob, fileName } = result
+    
+            const url = URL.createObjectURL(blob)
     
             if (isMobile()) {
-                const arrayBuffer = pdf.output('arraybuffer')
-                const blob = new Blob([arrayBuffer], { type: 'application/pdf' })
-                const url = URL.createObjectURL(blob)
-                
-                // Try download link first (works better on mobile)
+                // For mobile, create a download link and trigger it
                 const a = document.createElement('a')
                 a.style.display = 'none'
                 a.href = url
                 a.download = fileName
+                a.setAttribute('download', fileName) // Ensure download attribute is set
                 document.body.appendChild(a)
+                
+                // Trigger download
                 a.click()
                 
-                // Fallback: open in new tab after short delay
+                // Clean up after a delay
                 setTimeout(() => {
-                    const opened = window.open(url, '_blank')
-                    if (!opened) {
-                        setToast({ type: 'info', message: 'PDF ready. Check your downloads or allow popups.' })
+                    if (document.body.contains(a)) {
+                        document.body.removeChild(a)
                     }
-                }, 500)
-                
-                setTimeout(() => {
-                    document.body.removeChild(a)
                     URL.revokeObjectURL(url)
-                }, 10000)
+                }, 1000)
             } else {
-                pdf.save(fileName)
+                // Desktop: trigger download
+                const a = document.createElement('a')
+                a.href = url
+                a.download = fileName
+                document.body.appendChild(a)
+                a.click()
+                document.body.removeChild(a)
+                setTimeout(() => URL.revokeObjectURL(url), 1000)
             }
     
             setToast({ type: 'success', message: 'Invoice downloaded successfully' })
@@ -356,12 +465,20 @@ const canvas = await html2canvas(clone, {
                 return
             }
     
-            const { pdf, fileName } = result
+            const { blob, fileName } = result
     
             setToast({ type: 'info', message: 'Sending email...' })
     
-            const pdfDataUri = pdf.output('datauristring')
-            const base64 = pdfDataUri.split(',')[1] || ''
+            // Convert blob to base64 using FileReader
+            const base64 = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader()
+                reader.onloadend = () => {
+                    const result = reader.result as string
+                    resolve(result.split(',')[1] || '')
+                }
+                reader.onerror = reject
+                reader.readAsDataURL(blob)
+            })
     
             const res = await fetch('/api/send-invoice', {
                 method: 'POST',

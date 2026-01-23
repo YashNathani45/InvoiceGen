@@ -27,20 +27,20 @@ export async function POST(req: NextRequest) {
 // Check approval status (polling endpoint)
 export async function GET(req: NextRequest) {
     try {
-        const requestId = req.nextUrl.searchParams.get('requestId');
+    const requestId = req.nextUrl.searchParams.get('requestId');
 
-        if (!requestId) {
-            return NextResponse.json({ error: 'Missing requestId' }, { status: 400 });
-        }
+    if (!requestId) {
+        return NextResponse.json({ error: 'Missing requestId' }, { status: 400 });
+    }
 
         const db = await getDatabase();
         const request = await db.collection('approval_requests').findOne({ requestId });
 
-        if (!request) {
-            return NextResponse.json({ status: 'not_found' });
-        }
+    if (!request) {
+        return NextResponse.json({ status: 'not_found' });
+    }
 
-        return NextResponse.json({ status: request.status });
+    return NextResponse.json({ status: request.status });
     } catch (error) {
         console.error('Approval status error:', error);
         return NextResponse.json({ status: 'error' }, { status: 500 });

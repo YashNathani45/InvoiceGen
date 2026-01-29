@@ -27,8 +27,15 @@ export default function AdminPanel() {
 
     async function fetchRequests() {
         try {
-            const res = await fetch('/api/admin/requests')
+            // Add cache-busting and timestamp to prevent browser caching
+            const res = await fetch(`/api/admin/requests?t=${Date.now()}`, {
+                cache: 'no-store',
+                headers: {
+                    'Cache-Control': 'no-cache',
+                }
+            })
             const data = await res.json()
+            console.log('Fetched requests:', data.requests?.length || 0, 'items')
             setRequests(data.requests || [])
         } catch (err) {
             console.error('Failed to fetch requests:', err)
@@ -72,9 +79,25 @@ export default function AdminPanel() {
                     <h1>🔐 Admin Panel</h1>
                     <p>Manage invoice approval requests</p>
                 </div>
-                {pendingCount > 0 && (
-                    <div className="pending-badge">{pendingCount} pending</div>
-                )}
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                    <button 
+                        onClick={fetchRequests}
+                        style={{
+                            background: 'rgba(255,255,255,0.1)',
+                            border: 'none',
+                            color: '#94a3b8',
+                            padding: '8px 16px',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            fontSize: '14px'
+                        }}
+                    >
+                        🔄 Refresh
+                    </button>
+                    {pendingCount > 0 && (
+                        <div className="pending-badge">{pendingCount} pending</div>
+                    )}
+                </div>
             </header>
 
             <div className="filters">

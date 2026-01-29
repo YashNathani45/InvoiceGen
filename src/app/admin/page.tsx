@@ -20,22 +20,35 @@ export default function AdminPanel() {
 
     useEffect(() => {
         fetchRequests()
-        // Poll every 5 seconds for new requests
-        const interval = setInterval(fetchRequests, 5000)
+        // Poll every 3 seconds for new requests
+        const interval = setInterval(fetchRequests, 3000)
         return () => clearInterval(interval)
     }, [])
 
     async function fetchRequests() {
         try {
-            // Add cache-busting and timestamp to prevent browser caching
-            const res = await fetch(`/api/admin/requests?t=${Date.now()}`, {
+            // Multiple cache-busting techniques
+            const timestamp = Date.now();
+            const random = Math.random();
+            
+            const res = await fetch(`/api/admin/requests?t=${timestamp}&r=${random}`, {
+                method: 'GET',
                 cache: 'no-store',
                 headers: {
-                    'Cache-Control': 'no-cache',
-                }
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
+                },
+                // Force Next.js to skip cache
+                next: { revalidate: 0 }
             })
+            
+            if (!res.ok) {
+                throw new Error(`HTTP error! status: ${res.status}`);
+            }
+            
             const data = await res.json()
-            console.log('Fetched requests:', data.requests?.length || 0, 'items')
+            console.log('Fetched requests:', data.requests?.length || 0, 'items at', new Date().toISOString())
             setRequests(data.requests || [])
         } catch (err) {
             console.error('Failed to fetch requests:', err)
@@ -50,7 +63,8 @@ export default function AdminPanel() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ requestId, approved })
             })
-            fetchRequests()
+            // Force immediate refresh after action
+            setTimeout(() => fetchRequests(), 500);
         } catch (err) {
             console.error('Failed to update:', err)
         }
@@ -406,4 +420,3 @@ export default function AdminPanel() {
         </div>
     )
 }
-

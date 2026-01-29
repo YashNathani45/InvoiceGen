@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/mongodb';
 
+// Force dynamic rendering - CRITICAL for real-time data
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 async function getAllRequests(): Promise<any[]> {
     try {
         const db = await getDatabase();
@@ -24,7 +28,7 @@ async function getAllRequests(): Promise<any[]> {
     }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
     try {
         const requests = await getAllRequests();
         console.log('Admin requests - total:', requests.length);
@@ -43,12 +47,18 @@ export async function GET() {
 
         console.log('Admin requests - returning:', formattedRequests.length, 'requests');
         
-        // Prevent caching to ensure fresh data
-        return NextResponse.json({ requests: formattedRequests }, {
+        // Aggressive anti-cache headers
+        return new NextResponse(JSON.stringify({ requests: formattedRequests }), {
+            status: 200,
             headers: {
-                'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
                 'Pragma': 'no-cache',
                 'Expires': '0',
+                'Surrogate-Control': 'no-store',
+                // Vercel-specific header to prevent edge caching
+                'CDN-Cache-Control': 'no-store',
+                'Vercel-CDN-Cache-Control': 'no-store',
             }
         });
     } catch (error: any) {
@@ -60,4 +70,3 @@ export async function GET() {
         }, { status: 500 });
     }
 }
-

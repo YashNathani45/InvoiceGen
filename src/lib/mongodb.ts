@@ -21,43 +21,42 @@ const options = {
     retryReads: true,
 };
 
-let client: MongoClient;
+// Use a global variable to cache the connection across serverless function invocations
+// This is critical for serverless environments like Vercel
+let globalWithMongo = global as typeof globalThis & {
+    _mongoClientPromise?: Promise<MongoClient>;
+};
+
 let clientPromise: Promise<MongoClient>;
 
-if (process.env.NODE_ENV === 'development') {
-    // In development mode, use a global variable so that the value
-    // is preserved across module reloads caused by HMR (Hot Module Replacement).
-    let globalWithMongo = global as typeof globalThis & {
-        _mongoClientPromise?: Promise<MongoClient>;
-    };
-
-    if (!globalWithMongo._mongoClientPromise) {
-        client = new MongoClient(uri, options);
-        globalWithMongo._mongoClientPromise = client.connect().catch((error) => {
-            console.error('MongoDB connection error:', error);
-            // Reset the promise so it can be retried
-            globalWithMongo._mongoClientPromise = undefined;
-            throw error;
-        });
-    }
-    clientPromise = globalWithMongo._mongoClientPromise;
-} else {
-    // In production mode, it's best to not use a global variable.
-    client = new MongoClient(uri, options);
-    clientPromise = client.connect().catch((error) => {
+if (!globalWithMongo._mongoClientPromise) {
+    const client = new MongoClient(uri, options);
+    globalWithMongo._mongoClientPromise = client.connect().catch((error) => {
         console.error('MongoDB connection error:', error);
+        // Reset the promise so it can be retried
+        globalWithMongo._mongoClientPromise = undefined;
         throw error;
     });
 }
+
+clientPromise = globalWithMongo._mongoClientPromise;
 
 export async function getDatabase(): Promise<Db> {
     try {
         const client = await clientPromise;
         // Test the connection
         await client.db('admin').command({ ping: 1 });
-        return client.db('invoice_app');
+        const db = client.db('invoice_app');
+        
+        // Log database name for debugging (only in development)
+        if (process.env.NODE_ENV === 'development') {
+            console.log('Connected to database: invoice_app');
+        }
+        
+        return db;
     } catch (error: any) {
         console.error('Error getting database:', error);
+        console.error('MongoDB URI configured:', process.env.MONGODB_URI ? 'Yes' : 'No');
         throw new Error(`MongoDB connection failed: ${error.message}`);
     }
 }

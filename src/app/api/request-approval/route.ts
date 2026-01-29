@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
         const db = await getDatabase();
 
         // Persist the pending approval in MongoDB
-        await db.collection('approval_requests').insertOne({
+        const insertResult = await db.collection('approval_requests').insertOne({
             requestId,
             invoiceNo,
             customerName,
@@ -29,6 +29,13 @@ export async function POST(req: NextRequest) {
             propertyName,
             status: 'pending',
             createdAt: new Date(),
+        });
+
+        console.log('Approval request inserted:', {
+            requestId,
+            insertedId: insertResult.insertedId,
+            database: db.databaseName,
+            collection: 'approval_requests'
         });
 
         // Read subscriptions from MongoDB

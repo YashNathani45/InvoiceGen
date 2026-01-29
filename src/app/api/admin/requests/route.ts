@@ -4,13 +4,22 @@ import { getDatabase } from '@/lib/mongodb';
 async function getAllRequests(): Promise<any[]> {
     try {
         const db = await getDatabase();
+        console.log('Fetching requests from database:', db.databaseName, 'collection: approval_requests');
+        
         const requests = await db.collection('approval_requests')
             .find({})
             .sort({ createdAt: -1 })
             .toArray();
+        
+        console.log('Found', requests.length, 'requests in database');
         return requests;
     } catch (error: any) {
         console.error('Error getting requests:', error);
+        console.error('Error details:', {
+            message: error.message,
+            stack: error.stack,
+            name: error.name
+        });
         return [];
     }
 }

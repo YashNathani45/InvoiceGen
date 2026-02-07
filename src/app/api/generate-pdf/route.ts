@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import puppeteer from 'puppeteer'
-import os from 'os'
-import path from 'path'
+import puppeteer from 'puppeteer-core'
+
+// Puppeteer requires Node.js runtime (NOT Edge)
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
-    let browser
+    let browser: any | undefined
     try {
         const { html } = await req.json()
 
@@ -15,118 +17,142 @@ export async function POST(req: NextRequest) {
             )
         }
 
-        // Get Chrome executable path based on OS
-        let executablePath: string
-        
-        try {
-            // Try to get Puppeteer's default path first
-            executablePath = puppeteer.executablePath()
-        } catch (e) {
-            // Fallback: manually construct path
-            const homeDir = os.homedir()
-            const platform = os.platform()
-            
-            if (platform === 'win32') {
-                // Windows path
-                const cachePath = path.join(homeDir, '.cache', 'puppeteer', 'chrome')
-                executablePath = path.join(cachePath, 'win64-144.0.7559.96', 'chrome-win64', 'chrome.exe')
-            } else if (platform === 'linux') {
-                // Linux path
-                const cachePath = path.join(homeDir, '.cache', 'puppeteer', 'chrome')
-                executablePath = path.join(cachePath, 'linux-144.0.7559.96', 'chrome-linux64', 'chrome')
-            } else if (platform === 'darwin') {
-                // macOS path
-                const cachePath = path.join(homeDir, '.cache', 'puppeteer', 'chrome')
-                executablePath = path.join(cachePath, 'mac-144.0.7559.96', 'chrome-mac-x64', 'Google Chrome for Testing.app', 'Contents', 'MacOS', 'Google Chrome for Testing')
-            } else {
-                throw new Error('Unsupported platform: ' + platform)
-            }
+        const apiKey = process.env.BROWSERLESS_API_KEY
+        if (!apiKey) {
+            return NextResponse.json(
+                { error: 'Browserless API key not configured.' },
+                { status: 500 }
+            )
         }
 
-        console.log('Using Chrome at:', executablePath)
+        // CSS to clean up the page
+        const pageCSS = `
+            <style>
+                * { box-sizing: border-box; }
+                html, body {
+                    width: 760px !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                }
+                .desktop-toolbar,
+                .fab-container,
+                .toast-container,
+                .loading-overlay {
+                    display: none !important;
+                }
+            </style>
+        `
 
-        // Launch Puppeteer
-        browser = await puppeteer.launch({
-            headless: true,
-            executablePath: executablePath,
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-accelerated-2d-canvas',
-                '--disable-gpu',
-                '--disable-web-security',
-                '--disable-features=IsolateOrigins,site-per-process',
-            ],
-        })
+        let modifiedHtml = html
+        if (modifiedHtml.includes('</head>')) {
+            modifiedHtml = modifiedHtml.replace('</head>', pageCSS + '</head>')
+        } else {
+            modifiedHtml = '<head>' + pageCSS + '</head>' + modifiedHtml
+        }
 
-        const page = await browser.newPage()
+        const wsEndpoint = `wss://chrome.browserless.io?token=${apiKey}`
 
-        // Set viewport to match invoice width (760px)
-        await page.setViewport({
-            width: 760,
-            height: 1200,
-            deviceScaleFactor: 2,
-        })
+        const generateOnce = async () => {
+            console.log('Connecting to Browserless with Puppeteer...')
 
-        // Set content with HTML
-        await page.setContent(html, {
-            waitUntil: 'load',
-            timeout: 60000,
-        })
+            // Connect to Browserless using Puppeteer (remote Chrome)
+            browser = await puppeteer.connect({
+                browserWSEndpoint: wsEndpoint,
+                // In many puppeteer-core versions this is supported; safe to include.
+                // If unsupported, Browserless still works with defaults.
+                protocolTimeout: 120000 as any,
+            } as any)
 
-        // Wait for images to load
-        await page.evaluate(() => {
-            return Promise.all(
-                Array.from(document.images).map((img) => {
-                    if (img.src.startsWith('data:')) {
-                        return Promise.resolve()
-                    }
-                    if (img.complete && img.naturalWidth > 0) {
-                        return Promise.resolve()
-                    }
-                    return new Promise((resolve) => {
-                        img.onload = () => resolve(null)
-                        img.onerror = () => resolve(null)
-                        setTimeout(() => resolve(null), 1000)
+            const page = await browser.newPage()
+            page.setDefaultTimeout(60000)
+            page.setDefaultNavigationTimeout(60000)
+
+            // Set viewport
+            await page.setViewport({
+                width: 760,
+                height: 1200,
+                deviceScaleFactor: 2,
+            })
+
+            // Load HTML. Avoid 'networkidle0' which can hang forever on some pages.
+            await page.setContent(modifiedHtml, {
+                waitUntil: 'domcontentloaded',
+                timeout: 60000,
+            })
+
+            // Wait for images (best-effort) + small layout delay
+            await page.evaluate(() => {
+                return Promise.all(
+                    Array.from(document.images).map((img) => {
+                        if (img.complete && img.naturalWidth > 0) return Promise.resolve()
+                        return new Promise((resolve) => {
+                            img.onload = () => resolve(null)
+                            img.onerror = () => resolve(null)
+                            setTimeout(() => resolve(null), 2000)
+                        })
                     })
-                })
-            )
-        })
+                )
+            })
 
-        // Small delay to ensure layout is stable
-        await new Promise(resolve => setTimeout(resolve, 300))
+            await new Promise((resolve) => setTimeout(resolve, 500))
 
-        // Get the actual content height
-        const contentHeight = await page.evaluate(() => {
-            return Math.max(
-                document.body.scrollHeight,
-                document.body.offsetHeight,
-                document.documentElement.clientHeight,
-                document.documentElement.scrollHeight,
-                document.documentElement.offsetHeight
-            )
-        })
+            // Get EXACT content height
+            const contentHeight = await page.evaluate(() => {
+                return Math.max(
+                    document.body.scrollHeight,
+                    document.body.offsetHeight,
+                    document.documentElement.scrollHeight,
+                    document.documentElement.offsetHeight
+                )
+            })
 
-        console.log('PDF dimensions:', 760, 'x', contentHeight)
+            console.log('Content dimensions: 760px x', contentHeight + 'px')
 
-        // Generate PDF - single page, exact width and height
-        const pdfBuffer = await page.pdf({
-            width: '760px',
-            height: `${contentHeight}px`,
-            printBackground: true,
-            preferCSSPageSize: true,
-            margin: {
-                top: '0mm',
-                right: '0mm',
-                bottom: '0mm',
-                left: '0mm',
-            },
-        })
+            // Generate PDF with EXACT dimensions - ONE SINGLE PAGE
+            const pdfUint8 = await page.pdf({
+                width: '760px',
+                height: `${contentHeight}px`,
+                printBackground: true,
+                margin: {
+                    top: '12px',
+                    right: '12px',
+                    bottom: '12px',
+                    left: '12px',
+                  },
+                preferCSSPageSize: true,
+            })
 
-        await browser.close()
+            // Ensure page is closed to reduce chance of Browserless killing the target
+            await page.close().catch(() => {})
 
-        return new NextResponse(Buffer.from(pdfBuffer), {
+            return Buffer.from(pdfUint8)
+        }
+
+        let pdfBuffer: Buffer
+        try {
+            pdfBuffer = await generateOnce()
+        } catch (e: any) {
+            // Browserless can occasionally close the target mid-flight; retry once.
+            const msg = String(e?.message || e)
+            if (msg.includes('Target closed') || msg.includes('Protocol error')) {
+                console.warn('Browserless target closed mid-flight; retrying once...')
+                try {
+                    await browser?.close().catch(() => {})
+                } finally {
+                    browser = undefined
+                }
+                pdfBuffer = await generateOnce()
+            } else {
+                throw e
+            }
+        } finally {
+            await browser?.close().catch(() => {})
+        }
+
+        console.log('PDF generated successfully, size:', pdfBuffer.length, 'bytes')
+
+        // NextResponse typing is a bit strict here; Buffer is valid at runtime in Node.js
+        return new NextResponse(pdfBuffer as any, {
             headers: {
                 'Content-Type': 'application/pdf',
                 'Content-Disposition': 'attachment; filename="invoice.pdf"',
@@ -134,13 +160,12 @@ export async function POST(req: NextRequest) {
         })
     } catch (error: any) {
         console.error('PDF generation error:', error)
-        if (browser) {
-            await browser.close().catch(() => {})
-        }
+        try {
+            await browser?.close?.().catch(() => {})
+        } catch {}
         return NextResponse.json(
             { error: 'Failed to generate PDF', details: error.message },
             { status: 500 }
         )
     }
 }
- 

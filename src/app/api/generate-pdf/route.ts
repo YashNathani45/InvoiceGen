@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import puppeteer from 'puppeteer-core'
-
-// Puppeteer requires Node.js runtime (NOT Edge)
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 

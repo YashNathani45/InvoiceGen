@@ -77,7 +77,7 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
     const subtotal = toMoney((p.rate || 0) * (p.nights || 0))
     const taxAmount = toMoney(((p.taxRate || 0) / 100) * subtotal)
     const isProforma = (p.invoiceType || '').toLowerCase() === 'proforma'
-    const depositStatus = (isProforma ? 'none' : (p.depositStatus || 'none')) as 'none' | 'paid' | 'pending'
+    const [depositStatus, setDepositStatus] = useState<'none' | 'paid' | 'pending'>(p.depositStatus || 'none');
     const depositCharge = depositStatus === 'none' ? 0 : toMoney(Math.max(0, p.deposit || 0))
     const paidDeposit = depositStatus === 'paid' ? depositCharge : 0
     const pendingDeposit = depositStatus === 'pending' ? depositCharge : 0
@@ -161,7 +161,7 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
         const logoImg = clone.querySelector('.mcsc-logo-img') as HTMLImageElement
         if (logoImg) {
             // Apply all styles as inline to ensure Puppeteer renders them correctly
-            logoImg.setAttribute('style', 
+            logoImg.setAttribute('style',
                 'height: 110px; ' +
                 'width: auto; ' +
                 'object-fit: contain; ' +
@@ -175,7 +175,7 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
 
         // Gather all styles from stylesheets
         const allStyles: string[] = []
-        
+
         // Get styles from all stylesheets
         Array.from(document.styleSheets).forEach((sheet) => {
             try {
@@ -206,7 +206,7 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
                     const base64 = await new Promise<string>((resolve) => {
                         const image = new Image()
                         image.crossOrigin = 'anonymous'
-                        
+
                         image.onload = () => {
                             try {
                                 const canvas = document.createElement('canvas')
@@ -215,10 +215,10 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
                                     resolve('')
                                     return
                                 }
-                                
+
                                 canvas.width = image.naturalWidth || image.width || 100
                                 canvas.height = image.naturalHeight || image.height || 100
-                                
+
                                 if (canvas.width > 0 && canvas.height > 0) {
                                     ctx.drawImage(image, 0, 0)
                                     resolve(canvas.toDataURL('image/png'))
@@ -229,9 +229,9 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
                                 resolve('')
                             }
                         }
-                        
+
                         image.onerror = () => resolve('')
-                        
+
                         // Handle relative URLs
                         if (img.src.startsWith('/')) {
                             image.src = window.location.origin + img.src
@@ -241,7 +241,7 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
                             image.src = img.src
                         }
                     })
-                    
+
                     if (base64) {
                         img.src = base64
                     }
@@ -432,16 +432,16 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
     async function downloadInvoice() {
         setIsDownloading(true)
         setToast({ type: 'info', message: 'Generating PDF...' })
-        
+
         try {
             const result = await buildInvoicePdf()
             if (!result) {
                 throw new Error('Failed to generate PDF')
             }
             const { blob, fileName } = result
-    
+
             const url = URL.createObjectURL(blob)
-    
+
             if (isMobile()) {
                 // For mobile, convert blob to data URL (more reliable on mobile browsers)
                 const reader = new FileReader()
@@ -452,10 +452,10 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
                     a.download = fileName
                     a.style.display = 'none'
                     document.body.appendChild(a)
-                    
+
                     // Trigger download
                     a.click()
-                    
+
                     // Clean up
                     setTimeout(() => {
                         if (document.body.contains(a)) {
@@ -490,15 +490,15 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
                 document.body.removeChild(a)
                 setTimeout(() => URL.revokeObjectURL(url), 1000)
             }
-    
+
             setToast({ type: 'success', message: 'Invoice downloaded successfully' })
             setTimeout(() => setToast(null), 3000)
         } catch (error: any) {
             console.error('Download failed:', error)
             const errorMessage = error.message || error.toString() || 'Failed to download invoice'
-            setToast({ 
-                type: 'error', 
-                message: `Failed to generate invoice: ${errorMessage}` 
+            setToast({
+                type: 'error',
+                message: `Failed to generate invoice: ${errorMessage}`
             })
             setTimeout(() => setToast(null), 6000) // Show longer for error details
         } finally {
@@ -508,29 +508,29 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
 
     async function sendInvoiceByEmail() {
         if (isSending) return
-    
+
         const email = (emailToSend || p.customerEmail || '').trim()
         if (!email) {
             setToast({ type: 'error', message: 'Please enter a customer email address first.' })
             setTimeout(() => setToast(null), 4000)
             return
         }
-    
+
         try {
             setIsSending(true)
             setToast({ type: 'info', message: 'Generating PDF...' })
-    
+
             const result = await buildInvoicePdf()
             if (!result) {
                 setToast({ type: 'error', message: 'Could not build invoice PDF' })
                 setTimeout(() => setToast(null), 4000)
                 return
             }
-    
+
             const { blob, fileName } = result
-    
+
             setToast({ type: 'info', message: 'Sending email...' })
-    
+
             // Convert blob to base64 using FileReader
             const base64 = await new Promise<string>((resolve, reject) => {
                 const reader = new FileReader()
@@ -541,7 +541,7 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
                 reader.onerror = reject
                 reader.readAsDataURL(blob)
             })
-    
+
             const res = await fetch('/api/send-invoice', {
                 method: 'POST',
                 headers: {
@@ -562,13 +562,13 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
                     fileName,
                 }),
             })
-    
+
             const responseData = await res.json() // Add this to catch actual error
-    
+
             if (!res.ok) {
                 throw new Error(responseData.error || 'Failed to send')
             }
-    
+
             setToast({ type: 'success', message: `Invoice emailed to ${email}` })
             setTimeout(() => {
                 setToast(current => (current && current.type === 'success' ? null : current))
@@ -841,7 +841,7 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
                             <span>Grand Total</span>
                             <span>₹{formatINR(displayTotal)}</span>
                         </div>
-                        {depositStatus !== 'none' && (
+                        {!isProforma && depositStatus !== 'none' && (
                             <div className={`breakdown-row info deposit-row deposit-${depositStatus}`}>
                                 <div>
                                     <span>Security Deposit</span>

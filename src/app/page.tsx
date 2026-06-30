@@ -488,7 +488,6 @@ export default function FormPage() {
                     if (status === 'none') update('deposit', '')
                   }}
                   options={depositOptions}
-                  isDisabled={disablePayments}
                 />
               </Field>
               <Field label="Deposit Amount (₹)">
@@ -501,7 +500,7 @@ export default function FormPage() {
                   value={form.deposit}
                   onChange={e => update('deposit', e.target.value)}
                   className="input"
-                  disabled={disablePayments || form.depositStatus === 'none'}
+                  disabled={form.depositStatus === 'none'}
                 />
               </Field>
               {!disablePayments && form.paymentStatus === 'partial' && (

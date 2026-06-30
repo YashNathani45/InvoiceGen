@@ -77,7 +77,7 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
     const subtotal = toMoney((p.rate || 0) * (p.nights || 0))
     const taxAmount = toMoney(((p.taxRate || 0) / 100) * subtotal)
     const isProforma = (p.invoiceType || '').toLowerCase() === 'proforma'
-    const [depositStatus, setDepositStatus] = useState<'none' | 'paid' | 'pending'>(p.depositStatus || 'none');
+    const depositStatus = (isProforma ? 'none' : (p.depositStatus || 'none')) as 'none' | 'paid' | 'pending'
     const depositCharge = depositStatus === 'none' ? 0 : toMoney(Math.max(0, p.deposit || 0))
     const paidDeposit = depositStatus === 'paid' ? depositCharge : 0
     const pendingDeposit = depositStatus === 'pending' ? depositCharge : 0
@@ -841,7 +841,7 @@ export default function InvoicePage({ searchParams }: { searchParams: Record<str
                             <span>Grand Total</span>
                             <span>₹{formatINR(displayTotal)}</span>
                         </div>
-                        {!isProforma && depositStatus !== 'none' && (
+                        {depositStatus !== 'none' && (
                             <div className={`breakdown-row info deposit-row deposit-${depositStatus}`}>
                                 <div>
                                     <span>Security Deposit</span>
